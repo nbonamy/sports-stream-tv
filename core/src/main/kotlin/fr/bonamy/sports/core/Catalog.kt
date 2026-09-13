@@ -18,7 +18,7 @@ enum class Sport(val label: String, val path: String, val windowHours: Long = 4)
     MOTORSPORT("Motorsport", "motorsports-streams5/"),
     NCAAF("College Football", "ncaaf-live-stream01/", 5), BASKETBALL("Basketball", "basketball-live-stream2/"),
     VOLLEYBALL("Volleyball", "volleyball-live-streams/"), HANDBALL("Handball", "handball-live-streaming/");
-    companion object { val featured = entries.take(9); val more = entries.drop(9) }
+    companion object { val featured = entries.take(8); val more = entries.drop(8) }
 }
 data class StreamLink(val label: String, val url: String)
 data class Channel(val name: String, val links: List<StreamLink>) {

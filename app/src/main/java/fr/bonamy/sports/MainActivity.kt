@@ -26,11 +26,16 @@ import java.util.*
 
 @UnstableApi
 class MainActivity : ComponentActivity() {
-    private enum class Screen { HOME, MORE, SCHEDULE, CHANNELS, PLAYER }
+    private enum class Screen { HOME, MORE, SCHEDULE, CHANNELS, TV_COUNTRIES, TV_CHANNELS, PLAYER }
     private var screen = Screen.HOME
     private var sport = Sport.FOOTBALL
     private var homeFocus = "FOOTBALL"
     private val repository = SportsRepository()
+    private val liveTvRepository = LiveTvRepository()
+    private var tvCountries: List<TvCountry>? = null
+    private var tvCountryCode: String? = null
+    private var tvChannelId: String? = null
+    private var liveTvPlayback = false
     private val resolver = StreamResolver(trace = { android.util.Log.d("SportsSource", it) })
     private val schedules = mutableMapOf<Sport, List<SportsEvent>>()
     private var selectedEvent: SportsEvent? = null
@@ -68,10 +73,12 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when (screen) {
-                    Screen.PLAYER -> { stopPlayback(); showChannels() }
+                    Screen.PLAYER -> leavePlayer()
                     Screen.CHANNELS -> showSchedule()
                     Screen.SCHEDULE -> if (sport in Sport.more) showHome(true) else showHome()
                     Screen.MORE -> showHome()
+                    Screen.TV_COUNTRIES -> showHome()
+                    Screen.TV_CHANNELS -> showLiveTv()
                     Screen.HOME -> finish()
                 }
             }
@@ -89,6 +96,9 @@ class MainActivity : ComponentActivity() {
         if (screen == Screen.PLAYER && player == null && discoveryJob?.isActive != true) selectedChannel?.let { openChannel(it, streamIndex) }
         if (screen == Screen.SCHEDULE) {
             if (schedules[sport] == null && browseJob?.isActive != true) showSchedule() else startTicker()
+        }
+        if (screen in listOf(Screen.TV_COUNTRIES, Screen.TV_CHANNELS) && tvCountries == null && browseJob?.isActive != true) {
+            showLiveTv(if (screen == Screen.TV_CHANNELS) tvCountryCode else null)
         }
     }
 
@@ -110,8 +120,8 @@ class MainActivity : ComponentActivity() {
         else -> R.drawable.sport_more_cutout
     }
 
-    private fun artwork(item: Sport?) = ImageView(this).apply {
-        val resource = art(item)
+    private fun artwork(item: Sport?, liveTv: Boolean = false) = ImageView(this).apply {
+        val resource = if (liveTv) R.drawable.live_tv_cutout else art(item)
         val bitmap = artworkCache.get(resource) ?: android.graphics.BitmapFactory.decodeResource(resources, resource,
             android.graphics.BitmapFactory.Options()).also { artworkCache.put(resource, it) }
         setImageBitmap(bitmap); scaleType = ImageView.ScaleType.FIT_CENTER
@@ -143,17 +153,19 @@ class MainActivity : ComponentActivity() {
 
     private fun showHome(more: Boolean = false) {
         screen = if (more) Screen.MORE else Screen.HOME
-        val body = shell(if (more) " /  More sports" else " /  Home")
+        val body = shell(if (more) " /  More sports" else " /  Home", if (more) ({ showHome() }) else null)
         body.addSpaced(label(if (more) "More sports" else "Pick your sport.", 30f).apply { bold() }, bottom = 7)
         body.addSpaced(label("Find what’s on. Choose your channel. Settle in.", 13f, MUTED), bottom = 20)
         val list = column()
-        val items: List<Sport?> = if (more) Sport.more else Sport.featured + listOf(null)
+        val items = if (more) Sport.more.map { it.name } else Sport.featured.map { it.name } + listOf("LIVE_TV", "MORE")
         val columns = if (more) 4 else 5
         var target: View? = null
         items.chunked(columns).forEach { group ->
             val line = row()
-            group.forEach { item ->
-                val key = item?.name ?: "MORE"
+            group.forEach { key ->
+                val item = Sport.entries.firstOrNull { it.name == key }
+                val liveTv = key == "LIVE_TV"
+                val title = item?.label ?: if (liveTv) "LiveTV" else "+ More"
                 val tile = FrameLayout(this).apply {
                     id = View.generateViewId(); tag = key
                     isFocusable = true; isClickable = true
@@ -163,14 +175,15 @@ class MainActivity : ComponentActivity() {
                         addState(intArrayOf(), shape(Color.TRANSPARENT).apply { setStroke(dp(1), Color.rgb(54, 64, 76)) })
                     }
                     setPadding(dp(3), dp(3), dp(3), dp(3))
-                    addView(artwork(item), FrameLayout.LayoutParams(dp(132), dp(96), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                    addView(artwork(item, liveTv), FrameLayout.LayoutParams(dp(132), dp(96), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
                         .apply { topMargin = dp(12) })
-                    addView(label(item?.label ?: "+ More", 18f).apply { bold(); gravity = Gravity.CENTER },
+                    addView(label(title, 18f).apply { bold(); gravity = Gravity.CENTER },
                         FrameLayout.LayoutParams(-1, dp(30), Gravity.BOTTOM).apply { bottomMargin = dp(8) })
-                    contentDescription = item?.label ?: "More sports"
+                    contentDescription = title
                     setOnClickListener {
                         if (!more) homeFocus = key
-                        if (item == null) showHome(true)
+                        if (liveTv) showLiveTv()
+                        else if (item == null) showHome(true)
                         else { sport = item; focusedEventId = null; scheduleScroll = intArrayOf(0, 0); showSchedule() }
                     }
                 }
@@ -181,8 +194,50 @@ class MainActivity : ComponentActivity() {
             list.addSpaced(line, bottom = 14)
         }
         body.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        if (more) body.addSpaced(action("‹  All sports") { showHome() }, dp(44), 0)
         (target ?: (list.getChildAt(0) as? LinearLayout)?.getChildAt(0))?.requestFocus()
+    }
+
+    private fun showLiveTv(countryCode: String? = null, refresh: Boolean = false) {
+        screen = if (countryCode == null) Screen.TV_COUNTRIES else Screen.TV_CHANNELS
+        val country = tvCountries?.firstOrNull { it.code == countryCode }
+        val body = shell(" /  LiveTV" + (country?.let { "  /  ${it.code}" } ?: "")) {
+            if (countryCode == null) showHome() else showLiveTv()
+        }
+        val view = LiveTvView(this, country) { showLiveTv(countryCode, true) }
+        body.addView(view, LinearLayout.LayoutParams(-1, -1))
+        fun render(countries: List<TvCountry>) {
+            if (countryCode == null) view.countries(countries, tvCountryCode) {
+                if (tvCountryCode != it.code) tvChannelId = null
+                tvCountryCode = it.code
+                showLiveTv(it.code)
+            } else {
+                val selected = countries.firstOrNull { it.code == countryCode }
+                if (selected == null) { showLiveTv(); return }
+                view.channels(selected, tvChannelId) { channel ->
+                    tvChannelId = channel.id
+                    liveTvPlayback = true
+                    selectedEvent = null
+                    openChannel(channel)
+                }
+            }
+        }
+        if (!refresh && tvCountries != null) render(tvCountries!!)
+        else {
+            view.loading()
+            browseJob = lifecycleScope.launch {
+                try {
+                    val countries = withContext(Dispatchers.IO) { liveTvRepository.countries() }
+                    tvCountries = countries
+                    render(countries)
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) { view.unavailable() }
+            }
+        }
+    }
+
+    private fun leavePlayer() {
+        stopPlayback()
+        if (liveTvPlayback) showLiveTv(tvCountryCode) else showChannels()
     }
 
     private fun showSchedule(refresh: Boolean = false) {
@@ -333,6 +388,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showChannels() {
+        liveTvPlayback = false
         screen = Screen.CHANNELS
         val event = selectedEvent ?: return showSchedule()
         val body = shell(" /  ${sport.label}  /  Channels") { showSchedule() }
@@ -399,8 +455,9 @@ class MainActivity : ComponentActivity() {
         }
         playerView = video
         frame.addView(video, FrameLayout.LayoutParams(-1, -1))
-        val chrome = PlayerChrome(this, selectedEvent?.title ?: "Sports", selectedChannel?.name.orEmpty(),
-            onBack = { stopPlayback(); showChannels() },
+        val chrome = PlayerChrome(this, selectedEvent?.title ?: selectedChannel?.name ?: "LiveTV",
+            if (liveTvPlayback) "LiveTV · ${tvCountryCode.orEmpty()}" else selectedChannel?.name.orEmpty(),
+            onBack = { leavePlayer() },
             onPrevious = { changeStream(-1) }, onNext = { changeStream(1) },
             onRetry = {
                 if (streamOptions.isEmpty()) selectedChannel?.let { openChannel(it) }

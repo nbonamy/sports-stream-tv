@@ -18,10 +18,10 @@ build: signing
 	@cp $(SPORTS_APK) release/Sports.apk
 
 test:
-	./gradlew :core:test --console=plain
+	./gradlew :core:test :app:testDebugUnitTest --console=plain
 
 check:
-	./gradlew :core:test :app:lintDebug :app:assembleDebug --console=plain
+	./gradlew :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --console=plain
 
 probe:
 	./gradlew :core:probe --console=plain

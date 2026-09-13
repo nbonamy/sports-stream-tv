@@ -1,138 +1,76 @@
 # Sports
 
-A personal native Android TV sports browser. Start with illustrated sport tiles,
-browse current and upcoming events, choose a channel, and watch with Media3.
+Live sports and live TV, built for the big screen and your remote.
 
-Home rows: **Football, Tennis, Rugby, F1, Golf**, then **NFL, NBA, MLB, NHL, + More**.
-More opens MMA, Boxing, Motorsport, College Football, Basketball,
-Volleyball, and Handball. Schedules and channel listings come from the provider.
+Browse matches by sport, see what's on now and coming up, choose a channel,
+and watch in a fullscreen player. Or open **LiveTV** to browse channels by country.
 
-## Build and deploy
+![Sports home screen](docs/screenshots/home-livetv.png)
 
-Requires Java 17+, Python 3, and Android SDK 36. Set `sdk.dir` in untracked
-`local.properties`, or configure your Android SDK.
+## Features
 
-```sh
-make build       # Signed release APK: release/Sports.apk
-make check       # Core tests, Android lint, debug build
-make probe       # Live schedules, selectable Tennis streams and media probe
-make install     # Build and install on 192.168.1.4
-make deploy      # Build, install, and launch on 192.168.1.4
+- **Sports browsing** — Football, Tennis, Rugby, F1, Golf, NFL, NBA, and MLB on
+  the home screen. More includes NHL, MMA, Boxing, Motorsport, College Football,
+  Basketball, Volleyball, and Handball.
+- **Clear schedules** — separate Current and Upcoming sections, local start
+  times, countdowns, and league artwork.
+- **LiveTV** — a country-based channel directory, with France, the United States,
+  and the United Kingdom first.
+- **Stream switching** — move between a channel's available streams from the player.
+- **Made for a remote** — large tiles, visible focus, and Back navigation that
+  returns you to your previous selection.
+- **Native playback** — fullscreen video without the provider's web page or pop-ups.
+
+Listings come from [FSL](https://freestreams-live1h.pk/). Channel availability
+can vary, and commercials within broadcasts remain. The Current section is based
+on scheduled start times and estimated event durations, rather than a live-status feed.
+
+## Remote controls
+
+| Button | Browse | Player |
+| --- | --- | --- |
+| Arrow keys | Move between tiles | Left/Right changes stream; Up shows controls; Down selects play/pause or Retry |
+| OK | Open the selected item | Activate the selected control, or toggle playback when controls are hidden |
+| Back | Return to the previous screen | Return to the channel list |
+| Play/Pause | — | Toggle playback |
+
+## Install
+
+Requires Android TV 8.0 or later, Java 17+, Android SDK 36, Python 3, and ADB.
+Set the SDK location in your local `local.properties` file:
+
+```properties
+sdk.dir=/path/to/Android/sdk
 ```
 
-The `sports`, `sports-build`, `sports-install`, and `sports-deploy` aliases mirror
-MediaStation Music. Override `ANDROID_TV_DEVICE`, `ADB`, or `ANDROID_SDK_ROOT`
-as needed. Emulator example: `make deploy ANDROID_TV_DEVICE=emulator-5554`.
-A debug install uses a different signing identity than the release build.
-
-The first release build generates `keys/sports.jks` and `signing.properties`.
-Both are ignored by Git. Preserve both for future in-place updates.
-
-To probe one channel without scanning the catalog:
+Build a signed APK:
 
 ```sh
-./gradlew :core:probe --args=https://freestreams-live1h.pk/winsports/
+make build
 ```
 
-## Navigation
-
-- Home: arrow keys browse sport tiles; OK opens the sport's schedule.
-- Schedule: Current and Upcoming are clearly labeled sections in one vertical list
-  of full-width event cards. League icons come from the provider. Refresh reloads
-  the feed, with pulsing event placeholders while it loads; a compact breadcrumb
-  Back control returns to the sport home.
-- Event: the league logo appears in the header when available, with the sport
-  icon as fallback. Choose a channel; named numbered alternatives are grouped together.
-  Generic provider links use their channel page names derived from the URL.
-- Player: starts Stream 1 immediately, discovers alternatives in the background.
-  Left/Right switches streams; arrows appear only when a stream exists in that direction. Up reveals controls; Down
-  focuses pause/play or retry. OK activates the focused control, or toggles
-  playback when controls are hidden. Controls fade after three seconds of playback.
-  Connecting uses a quiet blue animation; unavailable streams use a red variation with retry.
-  Failed source resolution goes straight to the error state; automatic reconnection
-  is reserved for playback errors.
-- Back: player → channels → schedule → sport home → exit.
-  Header back icons stay outside remote focus navigation; use the remote's Back button.
-  Returning to a schedule restores event focus and scroll position.
-
-## Schedule timing
-
-Upcoming events show local start times and countdowns such as `in 1h29`, updated
-every 15 seconds. Events move between sections without refreshing the page.
-
-The provider does not reliably supply end times or live status. **Current uses
-an estimated window after the scheduled start**, stated on the screen: Football
-and Rugby 3 hours, Tennis 6, NFL and MLB 5, Golf 12, other sports 4. Older events
-are hidden from the schedule. This is not confirmation that a match or stream is live.
-
-Absolute provider timestamps take precedence. Dated table schedules combine the
-page's date with its UTC+1 time; US sport cards use America/New_York, including
-DST. Yearless dates use the nearest year, preserving stale dates. Undated events
-remain under Time unconfirmed. Channels appear separately. The NBA page sometimes
-lists WNBA games; these are not presented as NBA fixtures.
-
-## Artwork and design
-
-Music's navy background, Lato typography, and blue focus borders are retained.
-Ten original sport illustrations were generated with the built-in imagegen tool.
-Their backgrounds were removed locally and the cutouts normalized to identical
-512 × 384 transparent canvases. Every screen uses a 132 × 96 dp icon box, with
-labels laid out separately. The app caches the bundled bitmaps.
-
-- Artwork: `app/src/main/res/drawable-nodpi/sport_*_cutout.png`
-- Cutout preparation: [docs/artwork/transparent-icons.md](docs/artwork/transparent-icons.md)
-- Exact prompts: [docs/artwork-prompts.md](docs/artwork-prompts.md)
-- TV captures: [docs/screenshots](docs/screenshots)
-- Lato font license: `licenses/Lato-OFL.txt`
-
-## Source adapters
-
-`core/` parses table schedules and US sport cards, groups channels, discovers
-numbered stream alternatives, and resolves fresh HLS URLs without executing
-website scripts. `app/` contains the TV navigation, playback, lifecycle, signed
-URL renewal, and three bounded reconnection attempts.
-
-Supported player patterns include wikisport frames, igniteandship embeds, direct
-HLS configurations, the inspected character-array URL format, la18hd Clappr embeds with literal playback URLs, stream-xhd indexed URL data, and barecrop encoded player settings. Selecting a
-stream follows that stream's embeds; it never silently jumps to Stream 2.
-Unsupported or offline sources retain the stream arrows, retry control, and Back to channels.
-
-Required headers are passed to Media3 for playlists, keys, and media segments.
-Signed URLs are not persisted or logged. Diagnostics only identify provider hosts
-and error classes or safe HTTP errors. The app has no WebView, ad SDK, server,
-or P2P transport. Commercials within broadcasts remain.
-
-## Verification — September 13, 2026
-
-- 20 core tests cover parsing, channel grouping, stream ordering, cancellation,
-  timezone conversion, year boundaries, schedule transitions, countdowns, and the
-  Win Sports, DirecTV, and Tennis Stream 2 embed chains with their request headers
-  and encoded player data.
-- Debug/release builds and Android lint pass (zero errors).
-- Live schedules parsed for the original eight featured sports; NBA returned zero
-  NBA fixtures. The provider has stale WNBA listings on that page.
-- Sony TV at `192.168.1.4`: home artwork, schedule sections and countdowns,
-  channel selection, and stream selection visually checked.
-- Tennis Channel exposes two selectable streams. Stream 2 resolves through
-  barecrop and returns a valid HLS playlist and video segment; Stream 1 returned HTTP 404.
-  The Stream 2 update is verified locally and awaits TV deployment.
-- Win Sports: the resolver fetched a valid HLS playlist and a media segment (HTTP 200);
-  native playback was visually confirmed on the Sony TV through the schedule channel.
-- DirecTV Sports: decoded a fresh stream-xhd response, fetched the media playlist
-  and video segment, and visually confirmed native playback on the Sony TV.
-- Long-duration playback and scheduled URL renewal remain unverified. The emulator retains an August clock, so use the
-  correctly dated physical TV for network verification.
-
-## Player UI preview
-
-The debug build includes a network-free player preview, excluded from release:
+The APK is written to `release/Sports.apk`. To install on a TV reachable through
+ADB, replace the example address with your TV's address:
 
 ```sh
-adb shell am start -n fr.bonamy.sports/.PlayerPreviewActivity --es state unavailable
+make install ANDROID_TV_DEVICE=192.168.1.50
 ```
 
-States: `connecting`, `playing`, `paused`, `unavailable`; optional `--ei streams 1`
-checks a channel without alternatives. This exercises the real player controls
-without depending on provider availability. Emulator checks cover circular button
-bounds and centered icons, retry, stream boundaries, control fading, pause, and
-hidden arrows for single-stream channels. It does not verify media playback.
+Installation does not launch the app. Open **Sports** from your TV's apps, or use
+`make deploy ANDROID_TV_DEVICE=192.168.1.50` to install and launch it together.
+An ADB device serial can also be used as `ANDROID_TV_DEVICE`.
+
+The first build creates a local signing key in `keys/sports.jks` and its settings
+in `signing.properties`. Keep both for future app updates; they are excluded from Git.
+
+## Development
+
+```sh
+make check  # Core and Android UI tests, lint, and debug build
+```
+
+See [AGENTS.md](AGENTS.md) for the player architecture, source diagnostics, and
+how to add support for another player format.
+
+Artwork prompts and asset preparation are in [docs/artwork](docs/artwork).
+The bundled Lato font is distributed under the [SIL Open Font License](licenses/Lato-OFL.txt).

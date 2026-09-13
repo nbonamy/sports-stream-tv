@@ -11,6 +11,12 @@ fun main(args: Array<String>) = runBlocking {
         .readTimeout(12, TimeUnit.SECONDS).callTimeout(18, TimeUnit.SECONDS).build()
     val http = PageClient(client)
     try {
+        if (args.firstOrNull() == "--live-tv") {
+            val countries = LiveTvRepository(http).countries()
+            println("LiveTV: ${countries.size} countries; ${countries.sumOf { it.channels.size }} channel listings")
+            countries.forEach { println("${it.code}: ${it.channels.size} channels") }
+            return@runBlocking
+        }
         val repository = SportsRepository(http)
         for (sport in if (args.isEmpty()) Sport.featured else emptyList()) {
             val events = repository.events(sport)
