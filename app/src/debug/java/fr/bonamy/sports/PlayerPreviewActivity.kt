@@ -19,7 +19,7 @@ class PlayerPreviewActivity : Activity() {
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         val count = intent.getIntExtra("streams", 3).coerceAtLeast(1)
         fun move(direction: Int) {
-            index = Math.floorMod(index + direction, count)
+            index = (index + direction).coerceIn(0, count - 1)
             chrome.setStreams(index, count)
         }
         chrome = PlayerChrome(this, "DP World Tour: Irish Open – Final Round", "Sky Sports+",

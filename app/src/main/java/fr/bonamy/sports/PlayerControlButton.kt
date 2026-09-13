@@ -6,8 +6,6 @@ import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.view.View
 import android.view.accessibility.AccessibilityNodeInfo
-import kotlin.math.cos
-import kotlin.math.sin
 
 /** Circular controls with icons centered by geometry rather than font metrics. */
 internal class PlayerControlButton(context: Context, initialIcon: Icon, description: String) : View(context) {
@@ -53,19 +51,19 @@ internal class PlayerControlButton(context: Context, initialIcon: Icon, descript
                 canvas.drawPath(Path().apply { moveTo(-6f, -8f); lineTo(6f, 0f); lineTo(-6f, 8f); close() }, paint)
             }
             Icon.RETRY -> {
-                val angle = Math.toRadians(210.0)
-                val x = (8 * cos(angle)).toFloat(); val y = (8 * sin(angle)).toFloat()
-                val tx = -sin(angle).toFloat(); val ty = cos(angle).toFloat()
+                paint.style = Paint.Style.FILL
                 val path = Path().apply {
-                    addArc(RectF(-8f, -8f, 8f, 8f), -90f, 300f)
-                    moveTo(x - tx * 4 - ty * 3, y - ty * 4 + tx * 3)
-                    lineTo(x, y)
-                    lineTo(x - tx * 4 + ty * 3, y - ty * 4 - tx * 3)
+                    moveTo(12f, 5f)
+                    lineTo(12f, 1f)
+                    lineTo(7f, 6f)
+                    lineTo(12f, 11f)
+                    lineTo(12f, 7f)
+                    arcTo(RectF(6f, 7f, 18f, 19f), -90f, 270f)
+                    lineTo(4f, 13f)
+                    arcTo(RectF(4f, 5f, 20f, 21f), 180f, -270f)
+                    close()
+                    offset(-12f, -11f)
                 }
-                val bounds = RectF()
-                @Suppress("DEPRECATION")
-                path.computeBounds(bounds, true)
-                path.offset(-bounds.centerX(), -bounds.centerY())
                 canvas.drawPath(path, paint)
             }
         }

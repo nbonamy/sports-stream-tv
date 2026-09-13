@@ -419,8 +419,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun changeStream(direction: Int) {
-        if (streamOptions.size < 2) return
-        streamIndex = Math.floorMod(streamIndex + direction, streamOptions.size)
+        val target = streamIndex + direction
+        if (target !in streamOptions.indices) return
+        streamIndex = target
         retries = 0
         updateStreamControls()
         resolveAndPlay()

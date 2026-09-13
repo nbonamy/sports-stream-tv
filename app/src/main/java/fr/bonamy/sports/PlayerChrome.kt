@@ -67,9 +67,9 @@ internal class PlayerChrome(
         addView(next, LayoutParams(context.dp(56), context.dp(56), Gravity.END or Gravity.CENTER_VERTICAL)
             .apply { rightMargin = context.dp(28) })
         addView(connecting, LayoutParams(context.dp(140), context.dp(140), Gravity.CENTER))
-        failure.addSpaced(context.label("Stream unavailable", 18f, MUTED).apply { gravity = Gravity.CENTER }, bottom = 18)
         failure.addView(retry, LinearLayout.LayoutParams(context.dp(52), context.dp(52)))
         addView(failure, LayoutParams(context.dp(320), -2, Gravity.CENTER))
+        failure.translationY = context.dp(100).toFloat()
         showConnecting()
     }
 
@@ -80,12 +80,22 @@ internal class PlayerChrome(
 
     fun setStreams(index: Int, count: Int) {
         counter.text = if (count > 0) "Stream ${index + 1} / $count" else "Stream ${index + 1}"
-        previous.isEnabled = count > 1; previous.isFocusable = count > 1
-        next.isEnabled = count > 1; next.isFocusable = count > 1
+        previous.isEnabled = index > 0 && index < count
+        next.isEnabled = index >= 0 && index < count - 1
+        previous.isFocusable = previous.isEnabled
+        next.isFocusable = next.isEnabled
+        updateArrowVisibility()
+    }
+
+    private fun updateArrowVisibility() {
+        listOf(previous, next).forEach { arrow ->
+            arrow.visibility = if (!arrow.isEnabled) GONE else if (controlsVisible) VISIBLE else INVISIBLE
+        }
     }
 
     fun showConnecting() {
         mode = Mode.CONNECTING
+        connecting.isError = false
         backdrop.visibility = VISIBLE; connecting.visibility = VISIBLE; failure.visibility = GONE
         transport.visibility = GONE
         reveal()
@@ -104,7 +114,8 @@ internal class PlayerChrome(
 
     fun showUnavailable() {
         mode = Mode.UNAVAILABLE
-        backdrop.visibility = VISIBLE; connecting.visibility = GONE; failure.visibility = VISIBLE
+        connecting.isError = true
+        backdrop.visibility = VISIBLE; connecting.visibility = VISIBLE; failure.visibility = VISIBLE
         transport.visibility = GONE
         reveal()
         retry.requestFocus()
@@ -114,6 +125,7 @@ internal class PlayerChrome(
         removeCallbacks(hideControls)
         controlsVisible = true
         controls.forEach { it.animate().cancel(); it.visibility = VISIBLE; it.alpha = 1f }
+        updateArrowVisibility()
         if (mode == Mode.PLAYING) postDelayed(hideControls, 3000)
     }
 
@@ -169,6 +181,13 @@ internal class PlayerChrome(
 private class ConnectingView(context: Context) : View(context) {
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
     private var phase = 0f
+    var isError = false
+        set(value) {
+            field = value
+            contentDescription = if (value) "Stream unavailable" else "Connecting stream"
+            motion.duration = if (value) 2800 else 1800
+            invalidate()
+        }
     private val motion = ValueAnimator.ofFloat(0f, 1f).apply {
         duration = 1800; repeatCount = ValueAnimator.INFINITE; interpolator = LinearInterpolator()
         addUpdateListener { phase = it.animatedValue as Float; invalidate() }
@@ -178,17 +197,26 @@ private class ConnectingView(context: Context) : View(context) {
 
     override fun onDraw(canvas: Canvas) {
         val x = width / 2f; val y = height / 2f; val radius = context.dp(36).toFloat()
+        val accent = if (isError) 0xFFED6673.toInt() else ACCENT
+        val pulse = .5f + .5f * sin(phase * Math.PI.toFloat() * 2)
         paint.style = Paint.Style.FILL
-        paint.shader = RadialGradient(x, y, radius * 1.8f, intArrayOf(0x303498DA, Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
+        val glow = ((if (isError) 30 + (pulse * 24).toInt() else 48) shl 24) or (accent and 0xFFFFFF)
+        paint.shader = RadialGradient(x, y, radius * 1.8f, intArrayOf(glow, Color.TRANSPARENT), null, Shader.TileMode.CLAMP)
         canvas.drawCircle(x, y, radius * 1.8f, paint)
         paint.shader = null; paint.style = Paint.Style.STROKE; paint.strokeWidth = context.dp(2).toFloat(); paint.strokeCap = Paint.Cap.ROUND
-        paint.color = 0x253498DA
+        paint.color = 0x25000000 or (accent and 0xFFFFFF)
         canvas.drawCircle(x, y, radius, paint)
-        paint.color = ACCENT
+        paint.color = accent
         canvas.drawArc(x - radius, y - radius, x + radius, y + radius, phase * 360f - 90f, 78f, false, paint)
-        paint.color = 0x804FBAFF.toInt()
+        paint.color = if (isError) 0x80ED6673.toInt() else 0x804FBAFF.toInt()
         canvas.drawArc(x - radius, y - radius, x + radius, y + radius, phase * 360f + 90f, 28f, false, paint)
-        paint.strokeWidth = context.dp(4).toFloat(); paint.color = 0xFFD6EEFF.toInt()
+        paint.strokeWidth = context.dp(4).toFloat()
+        paint.color = if (isError) 0xFFFFB1B8.toInt() else 0xFFD6EEFF.toInt()
+        if (isError) {
+            canvas.drawLine(x, y - context.dp(10), x, y + context.dp(2), paint)
+            canvas.drawPoint(x, y + context.dp(10), paint)
+            return
+        }
         repeat(3) { index ->
             val height = context.dp(5) + context.dp(7) * (.5f + .5f * sin((phase * Math.PI * 2 + index * .9).toFloat()))
             val barX = x + (index - 1) * context.dp(9)

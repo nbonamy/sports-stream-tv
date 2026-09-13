@@ -39,10 +39,10 @@ Both are ignored by Git. Preserve both for future in-place updates.
   icon as fallback. Choose a channel; named numbered alternatives are grouped together.
   Generic provider links use their channel page names derived from the URL.
 - Player: starts Stream 1 immediately, discovers alternatives in the background.
-  Left/Right switches streams and wraps at either end. Up focuses Back; Down
+  Left/Right switches streams; arrows appear only when a stream exists in that direction. Up focuses Back; Down
   focuses pause/play or retry. OK activates the focused control, or toggles
   playback when controls are hidden. Controls fade after three seconds of playback.
-  Connecting uses a quiet animation; unavailable streams show a compact retry control.
+  Connecting uses a quiet blue animation; unavailable streams use a red variation with retry.
 - Back: player → channels → schedule → sport home → exit.
   Returning to a schedule restores event focus and scroll position.
 
@@ -120,5 +120,5 @@ adb shell am start -n fr.bonamy.sports/.PlayerPreviewActivity --es state unavail
 States: `connecting`, `playing`, `paused`, `unavailable`; optional `--ei streams 1`
 checks a channel without alternatives. This exercises the real player controls
 without depending on provider availability. Emulator checks cover circular button
-bounds and centered icons, retry, stream wraparound, control fading, pause, and
-disabled arrows for single-stream channels. It does not verify media playback.
+bounds and centered icons, retry, stream boundaries, control fading, pause, and
+hidden arrows for single-stream channels. It does not verify media playback.
