@@ -1,6 +1,6 @@
 # Sport artwork prompts
 
-Generated with the built-in imagegen tool on September 13, 2026. Images are bundled in `app/src/main/res/drawable-nodpi/`. Labels are rendered natively by the app.
+Generated with the built-in imagegen tool on September 13, 2026. Original images are archived in `docs/artwork/originals/`; the app bundles [normalized transparent cutouts](artwork/transparent-icons.md). Labels are rendered natively by the app.
 
 ## nhl
 

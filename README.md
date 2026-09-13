@@ -63,9 +63,12 @@ lists WNBA games; these are not presented as NBA fixtures.
 
 Music's navy background, Lato typography, and blue focus borders are retained.
 Ten original sport illustrations were generated with the built-in imagegen tool.
-The app loads bundled assets, with sampled decoding and a bounded bitmap cache.
+Their backgrounds were removed locally and the cutouts normalized to identical
+512 × 384 transparent canvases. Every screen uses a 132 × 96 dp icon box, with
+labels laid out separately. The app caches the bundled bitmaps.
 
-- Artwork: `app/src/main/res/drawable-nodpi/sport_*.png`
+- Artwork: `app/src/main/res/drawable-nodpi/sport_*_cutout.png`
+- Cutout preparation: [docs/artwork/transparent-icons.md](docs/artwork/transparent-icons.md)
 - Exact prompts: [docs/artwork-prompts.md](docs/artwork-prompts.md)
 - TV captures: [docs/screenshots](docs/screenshots)
 - Lato font license: `licenses/Lato-OFL.txt`

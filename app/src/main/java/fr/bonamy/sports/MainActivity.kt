@@ -102,28 +102,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun art(sport: Sport?): Int = when (sport) {
-        Sport.FOOTBALL -> R.drawable.sport_football
-        Sport.TENNIS -> R.drawable.sport_tennis
-        Sport.RUGBY -> R.drawable.sport_rugby
-        Sport.F1 -> R.drawable.sport_f1
-        Sport.NFL -> R.drawable.sport_nfl
-        Sport.NBA -> R.drawable.sport_nba
-        Sport.MLB -> R.drawable.sport_mlb
-        Sport.NHL -> R.drawable.sport_nhl
-        Sport.GOLF -> R.drawable.sport_golf
-        else -> R.drawable.sport_more
+        Sport.FOOTBALL -> R.drawable.sport_football_cutout
+        Sport.TENNIS -> R.drawable.sport_tennis_cutout
+        Sport.RUGBY -> R.drawable.sport_rugby_cutout
+        Sport.F1 -> R.drawable.sport_f1_cutout
+        Sport.NFL -> R.drawable.sport_nfl_cutout
+        Sport.NBA -> R.drawable.sport_nba_cutout
+        Sport.MLB -> R.drawable.sport_mlb_cutout
+        Sport.NHL -> R.drawable.sport_nhl_cutout
+        Sport.GOLF -> R.drawable.sport_golf_cutout
+        else -> R.drawable.sport_more_cutout
     }
 
-    private fun artwork(item: Sport?, homeTile: Boolean = false) = ImageView(this).apply {
+    private fun artwork(item: Sport?) = ImageView(this).apply {
         val resource = art(item)
         val bitmap = artworkCache.get(resource) ?: android.graphics.BitmapFactory.decodeResource(resources, resource,
-            android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }).also { artworkCache.put(resource, it) }
-        if (homeTile) {
-            setImageDrawable(SportTileDrawable(bitmap, dp(10).toFloat(), if (item == Sport.F1) .84f else 1f, dp(7).toFloat()))
-            scaleType = ImageView.ScaleType.FIT_XY
-        } else {
-            setImageBitmap(bitmap); scaleType = ImageView.ScaleType.FIT_CENTER
-        }
+            android.graphics.BitmapFactory.Options()).also { artworkCache.put(resource, it) }
+        setImageBitmap(bitmap); scaleType = ImageView.ScaleType.FIT_CENTER
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
 
@@ -172,9 +167,10 @@ class MainActivity : ComponentActivity() {
                         addState(intArrayOf(), shape(Color.TRANSPARENT).apply { setStroke(dp(1), Color.rgb(54, 64, 76)) })
                     }
                     setPadding(dp(3), dp(3), dp(3), dp(3))
-                    addView(artwork(item, homeTile = true), FrameLayout.LayoutParams(-1, -1))
+                    addView(artwork(item), FrameLayout.LayoutParams(dp(132), dp(96), Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+                        .apply { topMargin = dp(12) })
                     addView(label(item?.label ?: "+ More", 18f).apply { bold(); gravity = Gravity.CENTER },
-                        FrameLayout.LayoutParams(-1, dp(30), Gravity.BOTTOM).apply { bottomMargin = dp(2) })
+                        FrameLayout.LayoutParams(-1, dp(30), Gravity.BOTTOM).apply { bottomMargin = dp(8) })
                     contentDescription = item?.label ?: "More sports"
                     setOnClickListener {
                         if (!more) homeFocus = key
@@ -197,7 +193,7 @@ class MainActivity : ComponentActivity() {
         screen = Screen.SCHEDULE
         val body = shell(" /  ${sport.label}") { if (sport in Sport.more) showHome(true) else showHome() }
         val heading = row()
-        heading.addView(artwork(sport).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(INK); clipToOutline = true },
+        heading.addView(artwork(sport),
             LinearLayout.LayoutParams(dp(132), dp(96)).apply { marginEnd = dp(22) })
         val title = column()
         title.addSpaced(label(sport.label, 30f).apply { bold() }, bottom = 6)
@@ -350,7 +346,7 @@ class MainActivity : ComponentActivity() {
         text.addSpaced(label(event.title, 28f).apply { bold(); maxLines = 2 }, bottom = 10)
         text.addView(label(eventTime(event), 13f, MUTED))
         hero.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
-        hero.addView(artwork(sport), LinearLayout.LayoutParams(dp(180), dp(110)))
+        hero.addView(artwork(sport), LinearLayout.LayoutParams(dp(132), dp(96)))
         body.addSpaced(hero, bottom = 20)
         body.addSpaced(label("Choose a channel", 20f).apply { bold() }, bottom = 6)
         body.addSpaced(label("Starts with Stream 1. Change streams anytime in the player.", 12f, MUTED), bottom = 16)
