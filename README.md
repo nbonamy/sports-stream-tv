@@ -1,90 +1,103 @@
 # Sports
 
-A personal Android TV sports browser with Soccer and Tennis as the main sections.
-Browse current provider listings, search teams and competitions, choose a source,
-and watch through native Media3 playback. Tennis Channel +1 is always available
-as a shortcut in the Tennis section.
+A personal native Android TV sports browser. Start with illustrated sport tiles,
+browse current and upcoming events, choose a channel, and watch with Media3.
+
+Home order: **Football, Tennis, Rugby, F1, NFL, NBA, MLB, Golf, + More**.
+More opens MMA, Boxing, NHL, Motorsport, College Football, Basketball,
+Volleyball, and Handball. Tennis Channel +1 remains a permanent channel shortcut.
 
 ## Build and deploy
 
-Run from this directory. Requires Java 17+, Python 3, and Android SDK 36.
-Set `sdk.dir` in your untracked `local.properties`, or configure your Android SDK.
+Requires Java 17+, Python 3, and Android SDK 36. Set `sdk.dir` in untracked
+`local.properties`, or configure your Android SDK.
 
 ```sh
 make build       # Signed release APK: release/Sports.apk
-make check       # Parser/network tests, Android lint, debug build
-make probe       # Live schedules, Tennis HLS playlist and first media segment
+make check       # Core tests, Android lint, debug build
+make probe       # Live schedules, selectable Tennis streams and media probe
 make install     # Build and install on 192.168.1.4
 make deploy      # Build, install, and launch on 192.168.1.4
 ```
 
-`make sports`, `make sports-build`, `make sports-install`, and
-`make sports-deploy` mirror MediaStation Music's command naming.
+The `sports`, `sports-build`, `sports-install`, and `sports-deploy` aliases mirror
+MediaStation Music. Override `ANDROID_TV_DEVICE`, `ADB`, or `ANDROID_SDK_ROOT`
+as needed. Emulator example: `make deploy ANDROID_TV_DEVICE=emulator-5554`.
+A debug install uses a different signing identity than the release build.
 
-```sh
-make deploy ANDROID_TV_DEVICE=192.168.1.4
-make deploy ANDROID_TV_DEVICE=emulator-5554
-```
+The first release build generates `keys/sports.jks` and `signing.properties`.
+Both are ignored by Git. Preserve both for future in-place updates.
 
-Override `ADB` or `ANDROID_SDK_ROOT` when your Android tools are elsewhere.
-The first release build generates a dedicated signing identity in `keys/` and
-`signing.properties`. Both are ignored by Git. Preserve them for future in-place
-updates; a debug-signed emulator install is a different signing identity.
+## Navigation
 
-## Using it
+- Home: arrow keys browse sport tiles; OK opens the sport's schedule.
+- Schedule: Current and Upcoming are clearly labeled sections in one vertical list
+  of full-width event cards. League icons come from the provider. Refresh reloads
+  the feed; a compact breadcrumb Back control returns to the sport home.
+- Event: choose a channel. Named numbered alternatives are grouped together.
+  Generic provider links use their channel page names derived from the URL.
+- Player: starts Stream 1 immediately, discovers alternatives in the background.
+  Press Up to focus the stream selector, or Menu to open it directly.
+  The error overlay also exposes Change stream, Try again, and another channel.
+- Back: player → channels → schedule → sport home → exit.
+  Returning to a schedule restores event focus and scroll position.
 
-- Left/right: move between sports or cards within a competition.
-- Up/down: move between controls and competition rows.
-- Select: open a match, then choose a source.
-- Back: player → sources → browser → exit.
-- Search: filter the loaded sport's match titles and competitions.
-- Refresh: reload the provider's schedule.
-- Player controls: pause/resume, reconnect, or return to sources.
+## Schedule timing
 
-Soccer timestamps are converted to the TV's local time. Tennis rows without an
-absolute timestamp retain the source's UTC+1 time and are not labeled live or
-assigned an invented date. Listings are not a guarantee that a source is online.
+Upcoming events show local start times and countdowns such as `in 1h29`, updated
+every 15 seconds. Events move between sections without refreshing the page.
 
-## Design
+The provider does not reliably supply end times or live status. **Current uses
+an estimated window after the scheduled start**, stated on the screen: Football
+and Rugby 3 hours, Tennis 6, NFL and MLB 5, Golf 12, other sports 4. Older events
+remain in Earlier. This is not confirmation that a match or stream is live.
 
-Matches `~/src/mediastation/android/music`:
+Absolute provider timestamps take precedence. Dated table schedules combine the
+page's date with its UTC+1 time; US sport cards use America/New_York, including
+DST. Yearless dates use the nearest year, preserving stale dates. Undated events
+remain under Time unconfirmed. Channels appear separately. The NBA page sometimes
+lists WNBA games; these are not presented as NBA fixtures.
 
-- Navy surface gradient: `#07111D` → `#09121C` → `#02060B`.
-- Lato regular/bold typography (font license in `licenses/Lato-OFL.txt`).
-- Blue `#3498DA` focus borders and 7dp rounded cards.
-- 56dp breadcrumb header, 36dp side spacing, horizontal competition rows.
-- Muted blue-gray metadata and original locally drawn sports artwork.
+## Artwork and design
 
-## Structure
+Music's navy background, Lato typography, and blue focus borders are retained.
+Nine original sport illustrations were generated with the built-in imagegen tool.
+The app loads bundled assets, with sampled decoding and a bounded bitmap cache.
 
-- `app/`: TV browsing, source selection, native playback, lifecycle, retries.
-- `core/`: HTML catalog parsing, cancellable HTTP, stream resolution.
-- `tools/ensure_signing.py`: creates the local release signing identity once.
-- `Makefile`: build/check/probe/install/deploy, defaulting to the Sony TV.
+- Artwork: `app/src/main/res/drawable-nodpi/sport_*.png`
+- Exact prompts: [docs/artwork-prompts.md](docs/artwork-prompts.md)
+- TV captures: [docs/screenshots](docs/screenshots)
+- Lato font license: `licenses/Lato-OFL.txt`
 
-The source adapter reads HTML as data. It follows supported embedded players and
-extracts a fresh HLS URL without executing website scripts or loading web ads.
-Supported patterns include wikisport frames, igniteandship's channel embed,
-simple direct HLS player configurations, and the inspected character-array URL
-format. Other provider formats need additional adapters and show an unavailable
-message. The source URL and required headers are passed to Media3 for both
-playlists and media segments. URLs refresh shortly before their signed expiry,
-and playback failures trigger three bounded reconnection attempts.
+## Source adapters
 
-The app contains no WebView, advertising SDK, server, or P2P transport. Commercials
-already present in the broadcast remain. Signed media URLs are not persisted or
-logged; diagnostics only record provider hosts and error classes.
+`core/` parses table schedules and US sport cards, groups channels, discovers
+numbered stream alternatives, and resolves fresh HLS URLs without executing
+website scripts. `app/` contains the TV navigation, playback, lifecycle, signed
+URL renewal, and three bounded reconnection attempts.
+
+Supported player patterns include wikisport frames, igniteandship embeds, direct
+HLS configurations, and the inspected character-array URL format. Selecting a
+stream follows that stream's embeds; it never silently jumps to Stream 2.
+Unsupported or offline sources expose the stream and channel selectors.
+
+Required headers are passed to Media3 for playlists, keys, and media segments.
+Signed URLs are not persisted or logged. Diagnostics only identify provider hosts
+and error classes or safe HTTP errors. The app has no WebView, ad SDK, server,
+or P2P transport. Commercials within broadcasts remain.
 
 ## Verification — September 13, 2026
 
-- 8 parser/network tests passed, including cancellation and source alternatives.
-- Debug and signed release builds succeeded; Android lint reported zero errors.
-- Live probe read 24 Soccer listings (45 links) and 7 Tennis listings (14 links).
-- Tennis Channel +1 resolved to a valid signed HLS playlist; a media segment
-  returned HTTP 200 and a valid MPEG-TS sync byte.
-- Installed and launched version 0.1.0 on the Sony BRAVIA at 192.168.1.4.
-- TV source-selection screen visually inspected in the emulator.
-- Sustained native playback, scheduled renewal, and all Soccer source providers
-  still require device testing. The saved emulator snapshot had an August clock,
-  which predates the providers' current certificates; the physical TV clock was
-  verified current. No certificate validation is disabled.
+- 14 core tests cover parsing, channel grouping, stream ordering, cancellation,
+  timezone conversion, year boundaries, schedule transitions, and countdowns.
+- Debug/release builds and Android lint pass (zero errors).
+- Live schedules parse for all eight featured sports; NBA currently returns zero
+  NBA fixtures. The provider has stale WNBA listings on that page.
+- Sony TV at `192.168.1.4`: home artwork, schedule sections and countdowns,
+  channel selection, and the two-stream picker visually checked.
+- Tennis Channel +1 exposes two selectable streams. During this pass both were
+  unavailable; the original 0.1.0 resolver also failed against the same provider.
+  Earlier 0.1.0 testing had successfully fetched its HLS and a media segment.
+- Sustained native playback and scheduled URL renewal remain unverified with the
+  current provider failures. The emulator retains an August clock, so use the
+  correctly dated physical TV for network verification.

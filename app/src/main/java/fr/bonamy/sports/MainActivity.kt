@@ -2,9 +2,8 @@ package fr.bonamy.sports
 
 import android.graphics.Color
 import android.os.Bundle
-import android.text.Editable
-import android.text.TextWatcher
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.*
@@ -27,16 +26,21 @@ import java.util.*
 
 @UnstableApi
 class MainActivity : ComponentActivity() {
-    private enum class Screen { BROWSE, DETAILS, PLAYER }
-    private var screen = Screen.BROWSE
-    private var sport = Sport.SOCCER
+    private enum class Screen { HOME, MORE, SCHEDULE, CHANNELS, PLAYER }
+    private var screen = Screen.HOME
+    private var sport = Sport.FOOTBALL
+    private var homeFocus = "FOOTBALL"
     private val repository = SportsRepository()
     private val resolver = StreamResolver(trace = { android.util.Log.d("SportsSource", it) })
     private val schedules = mutableMapOf<Sport, List<SportsEvent>>()
     private var selectedEvent: SportsEvent? = null
-    private var selectedLink: StreamLink? = null
+    private var selectedChannel: Channel? = null
+    private var streamOptions = emptyList<StreamLink>()
+    private var streamIndex = 0
     private var browseJob: Job? = null
+    private var tickerJob: Job? = null
     private var resolveJob: Job? = null
+    private var discoveryJob: Job? = null
     private var renewalJob: Job? = null
     private var recoveryJob: Job? = null
     private var stableJob: Job? = null
@@ -45,27 +49,38 @@ class MainActivity : ComponentActivity() {
     private var playerMessage: TextView? = null
     private var playerOverlay: LinearLayout? = null
     private var playerHeader: LinearLayout? = null
+    private var streamButton: Button? = null
+    private var streamDialog: android.app.AlertDialog? = null
     private var retries = 0
-    private var query = ""
-    private var listScroll = 0
     private var focusedEventId: String? = null
-    private var browseScroll: ScrollView? = null
+    private var scheduleScroll = intArrayOf(0, 0)
+    private var scheduleViews = emptyList<ScrollView>()
+    private var renderSchedule: (() -> Unit)? = null
+    private var scheduleSignature = ""
+    private val iconJobs = mutableListOf<Job>()
+    private val countdownLabels = mutableListOf<Pair<TextView, SportsEvent>>()
+    private val artworkCache = object : android.util.LruCache<Int, android.graphics.Bitmap>(16 * 1024 * 1024) {
+        override fun sizeOf(key: Int, value: android.graphics.Bitmap) = value.byteCount
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        sport = runCatching { Sport.valueOf(savedInstanceState?.getString("sport") ?: "SOCCER") }.getOrDefault(Sport.SOCCER)
+        sport = runCatching { Sport.valueOf(savedInstanceState?.getString("sport") ?: "FOOTBALL") }.getOrDefault(Sport.FOOTBALL)
+        homeFocus = sport.name
         @Suppress("DEPRECATION")
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 when (screen) {
-                    Screen.PLAYER -> { stopPlayback(); showDetails() }
-                    Screen.DETAILS -> showBrowse()
-                    Screen.BROWSE -> finish()
+                    Screen.PLAYER -> { stopPlayback(); showChannels() }
+                    Screen.CHANNELS -> showSchedule()
+                    Screen.SCHEDULE -> if (sport in Sport.more) showHome(true) else showHome()
+                    Screen.MORE -> showHome()
+                    Screen.HOME -> finish()
                 }
             }
         })
-        showBrowse()
+        showHome()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
@@ -75,225 +90,401 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
-        if (screen == Screen.PLAYER && player == null) selectedLink?.let { openPlayer(it) }
-        else if (screen == Screen.BROWSE && schedules[sport] == null && browseJob?.isActive != true) showBrowse()
+        if (screen == Screen.PLAYER && player == null && discoveryJob?.isActive != true) selectedChannel?.let { openChannel(it, streamIndex) }
+        if (screen == Screen.SCHEDULE) {
+            if (schedules[sport] == null && browseJob?.isActive != true) showSchedule() else startTicker()
+        }
     }
 
     override fun onStop() {
-        browseJob?.cancel()
-        stopPlayback()
+        browseJob?.cancel(); tickerJob?.cancel(); stopPlayback()
         super.onStop()
     }
 
-    private fun switchSport(next: Sport) {
-        sport = next; query = ""; listScroll = 0; focusedEventId = null
-        showBrowse()
+    private fun art(sport: Sport?): Int = when (sport) {
+        Sport.FOOTBALL -> R.drawable.sport_football
+        Sport.TENNIS -> R.drawable.sport_tennis
+        Sport.RUGBY -> R.drawable.sport_rugby
+        Sport.F1 -> R.drawable.sport_f1
+        Sport.NFL -> R.drawable.sport_nfl
+        Sport.NBA -> R.drawable.sport_nba
+        Sport.MLB -> R.drawable.sport_mlb
+        Sport.GOLF -> R.drawable.sport_golf
+        else -> R.drawable.sport_more
     }
 
-    private fun showBrowse(refresh: Boolean = false) {
-        screen = Screen.BROWSE
-        browseJob?.cancel()
+    private fun artwork(item: Sport?) = ImageView(this).apply {
+        val resource = art(item)
+        val bitmap = artworkCache.get(resource) ?: android.graphics.BitmapFactory.decodeResource(resources, resource,
+            android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }).also { artworkCache.put(resource, it) }
+        setImageBitmap(bitmap); scaleType = ImageView.ScaleType.FIT_CENTER
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+    }
+
+    private fun shell(crumb: String, back: (() -> Unit)? = null): LinearLayout {
+        browseJob?.cancel(); tickerJob?.cancel(); renderSchedule = null
+        iconJobs.forEach { it.cancel() }; iconJobs.clear()
         val root = column().apply { background = browserBackground() }
-        val header = row().apply {
-            setBackgroundColor(0xF207111D.toInt()); setPadding(dp(36), 0, dp(36), 0)
-        }
-        header.addView(label("Sports  /  ${sport.label}", 15f, Color.rgb(168, 189, 216)), LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(label("SOCCER  +  TENNIS", 10f, MUTED).apply { letterSpacing = .12f })
+        val header = row().apply { setPadding(dp(36), 0, dp(36), 0) }
+        if (back != null) header.addView(label("‹", 24f, MUTED).apply {
+            isFocusable = true; isClickable = true; gravity = Gravity.CENTER; contentDescription = "Back"
+            background = android.graphics.drawable.StateListDrawable().apply {
+                addState(intArrayOf(android.R.attr.state_focused), shape(INK, ACCENT))
+                addState(intArrayOf(), shape(Color.TRANSPARENT))
+            }
+            setOnClickListener { back() }
+        }, LinearLayout.LayoutParams(dp(32), dp(36)).apply { marginEnd = dp(12) })
+        header.addView(label("SPORTS", 17f).apply { bold(); letterSpacing = .16f })
+        header.addView(label(crumb, 12f, MUTED).apply { setPadding(dp(22), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
+        header.addView(label(SimpleDateFormat("EEE, MMM d  ·  h:mm a", Locale.getDefault()).format(Date()), 11f, MUTED))
         root.addView(header, LinearLayout.LayoutParams(-1, dp(56)))
-        val content = column().apply { setPadding(dp(36), dp(16), dp(36), 0) }
-        root.addView(content, LinearLayout.LayoutParams(-1, 0, 1f))
-        val tabs = row()
-        val sportButtons = Sport.entries.map { item ->
-            action(item.label) { switchSport(item) }.apply { if (sport == item) setTextColor(ACCENT) }
-        }
-        sportButtons.forEach { tabs.addView(it, LinearLayout.LayoutParams(dp(120), dp(44)).apply { marginEnd = dp(12) }) }
-        tabs.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f))
-        tabs.addView(action("Refresh") { showBrowse(true) }, LinearLayout.LayoutParams(dp(104), dp(44)))
-        content.addSpaced(tabs, bottom = 14)
-        val search = EditText(this).apply {
-            typeface = resources.getFont(R.font.theme)
-            hint = "Find a match, team or competition"; textSize = 13f
-            setSingleLine(true); setTextColor(Color.WHITE); setHintTextColor(MUTED)
-            background = focusBackground(); setPadding(dp(14), dp(6), dp(14), dp(6)); setText(query)
-        }
-        content.addSpaced(search, dp(38), 10)
-        val count = label("Loading schedule…", 11f, MUTED)
-        content.addSpaced(count, bottom = 6)
-        val list = column().apply { clipChildren = false; setPadding(0, 0, 0, dp(36)) }
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true; clipToPadding = false; clipChildren = false
-            isVerticalScrollBarEnabled = false; addView(list)
-        }
-        browseScroll = scroll
-        content.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        val body = column().apply { setPadding(dp(36), dp(8), dp(36), dp(24)) }
+        root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
         setContentView(root)
-        fun render() {
-            list.removeAllViews()
-            val entries = schedules[sport].orEmpty()
-            val all = if (sport == Sport.TENNIS) listOf(SportsRepository.tennisChannel) + entries else entries
-            val visible = all.filter { query.isBlank() || "${it.title} ${it.competition}".contains(query, ignoreCase = true) }
-            count.text = "${entries.size} listings · select a match to choose a source"
-            val groups = visible.groupBy { if (it == SportsRepository.tennisChannel) "Channels" else it.competition.ifBlank { "Matches" } }
-            groups.forEach { (title, events) ->
-                list.addSpaced(label(title, 16f).apply { bold(); setPadding(0, dp(12), 0, 0) }, bottom = 10)
-                val cards = row().apply { clipChildren = false; setPadding(dp(3), dp(3), dp(3), dp(3)) }
-                events.forEach { event ->
-                    val card = eventCard(event)
-                    cards.addView(card, LinearLayout.LayoutParams(dp(224), dp(194)).apply { marginEnd = dp(14) })
-                    if (event.id == focusedEventId) card.post { card.requestFocus() }
-                }
-                list.addSpaced(HorizontalScrollView(this).apply {
-                    isHorizontalScrollBarEnabled = false; clipToPadding = false; clipChildren = false; addView(cards)
-                }, bottom = 8)
-            }
-            if (visible.isEmpty()) list.addSpaced(label("No matches found. Try another search or refresh.", 16f, MUTED))
-            scroll.post { scroll.scrollTo(0, listScroll) }
-        }
-        search.addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                query = s.toString(); focusedEventId = null; listScroll = 0; render()
-            }
-            override fun afterTextChanged(s: Editable?) = Unit
-        })
-        if (!refresh && schedules[sport] != null) render()
-        else {
-            list.addSpaced(label("Loading the ${sport.label.lowercase()} schedule…", 18f, MUTED))
-            val requestedSport = sport
-            browseJob = lifecycleScope.launch {
-                try {
-                    val loaded = withContext(Dispatchers.IO) { repository.events(requestedSport) }
-                    schedules[requestedSport] = loaded
-                    if (screen == Screen.BROWSE && sport == requestedSport) render()
-                } catch (e: CancellationException) { throw e }
-                catch (_: Exception) {
-                    if (schedules[requestedSport] != null) {
-                        render(); count.text = "Couldn’t refresh · showing the previous schedule"
-                    } else {
-                        list.removeAllViews()
-                        list.addSpaced(label("The schedule isn’t available right now.", 20f))
-                        list.addSpaced(label("Check your connection, then try again.", 14f, MUTED))
-                        list.addSpaced(action("Try again") { showBrowse(true) })
-                        if (sport == Sport.TENNIS) list.addSpaced(eventCard(SportsRepository.tennisChannel), dp(194))
+        return body
+    }
+
+    private fun showHome(more: Boolean = false) {
+        screen = if (more) Screen.MORE else Screen.HOME
+        val body = shell(if (more) " /  More sports" else " /  Home")
+        body.addSpaced(label(if (more) "More sports" else "Pick your sport.", 30f).apply { bold() }, bottom = 7)
+        body.addSpaced(label("Find what’s on. Choose your channel. Settle in.", 13f, MUTED), bottom = 20)
+        val list = column()
+        val items: List<Sport?> = if (more) Sport.more else Sport.featured + listOf(null)
+        val columns = if (more) 4 else 5
+        var target: View? = null
+        items.chunked(columns).forEach { group ->
+            val line = row()
+            group.forEach { item ->
+                val key = item?.name ?: "MORE"
+                val tile = FrameLayout(this).apply {
+                    id = View.generateViewId(); tag = key
+                    isFocusable = true; isClickable = true; background = focusBackground()
+                    setPadding(dp(3), dp(3), dp(3), dp(3))
+                    addView(artwork(item).apply {
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        background = shape(INK); clipToOutline = true
+                    }, FrameLayout.LayoutParams(-1, -1))
+                    addView(label(item?.label ?: "+ More", 18f).apply { bold(); gravity = Gravity.CENTER },
+                        FrameLayout.LayoutParams(-1, dp(34), Gravity.BOTTOM).apply { bottomMargin = dp(6) })
+                    contentDescription = item?.label ?: "More sports"
+                    setOnClickListener {
+                        if (!more) homeFocus = key
+                        if (item == null) showHome(true)
+                        else { sport = item; focusedEventId = null; scheduleScroll = intArrayOf(0, 0); showSchedule() }
                     }
                 }
+                if (key == (if (more) sport.name else homeFocus)) target = tile
+                line.addView(tile, LinearLayout.LayoutParams(0, dp(155), 1f).apply { marginEnd = dp(12) })
             }
+            repeat(columns - group.size) { line.addView(View(this), LinearLayout.LayoutParams(0, 1, 1f).apply { marginEnd = dp(12) }) }
+            list.addSpaced(line, bottom = 14)
         }
-        sportButtons[sport.ordinal].requestFocus()
+        body.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        if (more) body.addSpaced(action("‹  All sports") { showHome() }, dp(44), 0)
+        else body.addView(label("↑ ↓ ← →  Browse     •     OK  Select", 11f, MUTED))
+        (target ?: (list.getChildAt(0) as? LinearLayout)?.getChildAt(0))?.requestFocus()
     }
 
-    private fun eventCard(event: SportsEvent): View = column().apply {
-        background = focusBackground(); isFocusable = true; isClickable = true
-        setPadding(dp(3), dp(3), dp(3), dp(3))
-        addView(SportArt(this@MainActivity, sport, event.title), LinearLayout.LayoutParams(-1, dp(94)))
-        val text = column().apply { setPadding(dp(10), dp(9), dp(10), dp(8)) }
-        text.addSpaced(label(event.title, 14f).apply {
-            bold(); maxLines = 2; ellipsize = android.text.TextUtils.TruncateAt.END
-        }, dp(36), 6)
-        text.addSpaced(label(eventTime(event), 10f, MUTED).apply { maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END }, bottom = 6)
-        text.addView(label("${event.links.size} ${if (event.links.size == 1) "source" else "sources"}", 10f, ACCENT))
-        addView(text)
-        contentDescription = "${event.title}, ${eventTime(event)}, ${event.links.size} sources"
-        setOnClickListener {
-            listScroll = browseScroll?.scrollY ?: 0; focusedEventId = event.id
-            selectedEvent = event; showDetails()
+    private fun showSchedule(refresh: Boolean = false) {
+        screen = Screen.SCHEDULE
+        val body = shell(" /  ${sport.label}") { if (sport in Sport.more) showHome(true) else showHome() }
+        val heading = row()
+        heading.addView(artwork(sport).apply { scaleType = ImageView.ScaleType.CENTER_CROP; background = shape(INK); clipToOutline = true },
+            LinearLayout.LayoutParams(dp(132), dp(96)).apply { marginEnd = dp(22) })
+        val title = column()
+        title.addSpaced(label(sport.label, 30f).apply { bold() }, bottom = 6)
+        title.addView(label("Schedule", 18f, MUTED))
+        heading.addView(title, LinearLayout.LayoutParams(0, -2, 1f))
+        val refreshButton = action("Refresh") { rememberSchedule(); showSchedule(true) }
+        heading.addView(refreshButton, LinearLayout.LayoutParams(dp(104), dp(42)))
+        body.addSpaced(heading, dp(96), 12)
+        val status = label("Loading schedule…", 11f, MUTED)
+        body.addSpaced(status, bottom = 6)
+        val list = column()
+        val scroll = ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(list) }
+        scheduleViews = listOf(scroll)
+        body.addView(scroll, LinearLayout.LayoutParams(-1, 0, 1f))
+        var firstRender = true
+        fun render() {
+            val entries = schedules[sport].orEmpty()
+            val all = (if (sport == Sport.TENNIS) listOf(SportsRepository.tennisChannel) + entries else entries).distinctBy { it.id }
+            val now = System.currentTimeMillis()
+            if (!firstRender) rememberSchedule()
+            val restoreFocus = if (firstRender) focusedEventId else currentFocus?.tag as? String
+            val focusedControl = currentFocus
+            list.removeAllViews(); countdownLabels.clear()
+            iconJobs.forEach { it.cancel() }; iconJobs.clear()
+            var focusTarget: View? = null
+            var firstCard: View? = null
+            fun section(kind: ScheduleSection, always: Boolean = false) {
+                val events = all.filter { Schedule.section(it, sport, now) == kind }.sortedBy { it.startsAt ?: Long.MAX_VALUE }
+                if (events.isEmpty() && !always) return
+                val color = if (kind == ScheduleSection.CURRENT) Color.rgb(105, 217, 174) else ACCENT
+                val sectionHeader = row().apply { setPadding(0, dp(8), 0, 0) }
+                sectionHeader.addView(label("${kind.label}   ${events.size}", 20f, color).apply { bold() })
+                if (kind == ScheduleSection.CURRENT) sectionHeader.addView(
+                    label("Based on scheduled times · live status may vary", 10f, MUTED).apply { setPadding(dp(18), 0, 0, 0) })
+                list.addSpaced(sectionHeader, bottom = 10)
+                if (events.isEmpty()) list.addSpaced(label("No ${kind.label.lowercase()} events listed", 13f, MUTED)
+                    .apply { setPadding(dp(12), dp(10), 0, dp(12)) })
+                events.forEach { event ->
+                    val card = eventCard(event)
+                    if (firstCard == null) firstCard = card
+                    if (event.id == restoreFocus) focusTarget = card
+                    list.addSpaced(card, dp(76), 8)
+                }
+            }
+            section(ScheduleSection.CURRENT, true)
+            section(ScheduleSection.UPCOMING, true)
+            section(ScheduleSection.CHANNELS)
+            section(ScheduleSection.UNKNOWN)
+            section(ScheduleSection.EARLIER)
+            val initial = firstRender
+            scroll.post {
+                scroll.scrollTo(0, scheduleScroll[0])
+                val target = focusTarget ?: if (initial) firstCard else null
+                target?.requestFocus() ?: if (focusedControl?.isAttachedToWindow == true) focusedControl.requestFocus() else Unit
+            }
+            status.text = "${entries.size} events · local start times"
+            scheduleSignature = signature()
+            firstRender = false
         }
+        renderSchedule = ::render
+        if (!refresh && schedules[sport] != null) render()
+        else {
+            status.text = "Loading ${sport.label.lowercase()} events…"
+            val requested = sport
+            browseJob = lifecycleScope.launch {
+                try {
+                    schedules[requested] = withContext(Dispatchers.IO) { repository.events(requested) }
+                    if (screen == Screen.SCHEDULE && sport == requested) render()
+                } catch (e: CancellationException) { throw e }
+                catch (_: Exception) {
+                    render()
+                    status.text = if (schedules[requested] != null) "Couldn’t refresh · showing the previous schedule" else "Schedule unavailable · select Refresh to try again"
+                }
+            }
+        }
+        startTicker()
+    }
+
+    private fun signature(): String {
+        val now = System.currentTimeMillis()
+        return schedules[sport].orEmpty().joinToString { it.id + Schedule.section(it, sport, now).name }
+    }
+
+    private fun startTicker() {
+        tickerJob?.cancel()
+        tickerJob = lifecycleScope.launch {
+            while (screen == Screen.SCHEDULE) {
+                if (signature() != scheduleSignature) renderSchedule?.invoke()
+                countdownLabels.forEach { (view, event) -> view.text = timing(event) }
+                delay(15_000)
+            }
+        }
+    }
+
+    private fun rememberSchedule() { scheduleViews.forEachIndexed { index, view -> scheduleScroll[index] = view.scrollY } }
+
+    private fun eventCard(event: SportsEvent): View = row().apply {
+        tag = event.id; isFocusable = true; isClickable = true; background = focusBackground()
+        setPadding(dp(5), dp(5), dp(16), dp(5))
+        event.leagueIconUrl?.let { url ->
+            val icon = ImageView(this@MainActivity).apply {
+                scaleType = ImageView.ScaleType.FIT_CENTER
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+            }
+            addView(icon, LinearLayout.LayoutParams(dp(72), -1).apply { marginEnd = dp(12) })
+            iconJobs += lifecycleScope.launch {
+                val bitmap = LeagueIcons.load(url)
+                if (bitmap != null) icon.setImageBitmap(bitmap)
+            }
+        } ?: setPadding(dp(18), dp(5), dp(16), dp(5))
+        val text = column()
+        text.addSpaced(label(event.competition.ifBlank { sport.label }, 12f, MUTED).apply {
+            maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END
+        }, bottom = 6)
+        text.addView(label(event.title, 18f).apply { bold(); maxLines = 1; ellipsize = android.text.TextUtils.TruncateAt.END })
+        addView(text, LinearLayout.LayoutParams(0, -2, 1f).apply { marginEnd = dp(14) })
+        val time = label(timing(event), 12f, if (event.startsAt?.let { it > System.currentTimeMillis() } == true) ACCENT else MUTED).apply {
+            gravity = Gravity.CENTER_VERTICAL; maxLines = 2
+        }
+        countdownLabels += time to event
+        addView(time, LinearLayout.LayoutParams(dp(135), -2).apply { marginEnd = dp(14) })
+        addView(View(this@MainActivity).apply { setBackgroundColor(0xFF22374C.toInt()) }, LinearLayout.LayoutParams(dp(1), dp(34)).apply { marginEnd = dp(16) })
+        addView(label("${event.channels.size} ${if (event.channels.size == 1) "channel" else "channels"}  ›", 12f, MUTED), LinearLayout.LayoutParams(dp(90), -2))
+        contentDescription = "${event.title}, ${timing(event)}, ${event.channels.size} channels"
+        setOnClickListener { rememberSchedule(); focusedEventId = event.id; selectedEvent = event; selectedChannel = null; showChannels() }
     }
 
     private fun eventTime(event: SportsEvent): String = event.startsAt?.let {
         SimpleDateFormat("EEE, MMM d · h:mm a", Locale.getDefault()).format(Date(it))
-    } ?: event.timeLabel.ifBlank { "Channel" }
+    } ?: event.timeLabel.ifBlank { if (event.isChannel) "24/7 channel" else "Time unconfirmed" }
 
-    private fun showDetails() {
-        screen = Screen.DETAILS
-        browseJob?.cancel()
-        val event = selectedEvent ?: return showBrowse()
-        val content = column().apply { background = browserBackground(); setPadding(dp(48), dp(28), dp(48), dp(28)) }
-        content.addSpaced(action("‹  Back to ${sport.label}") { showBrowse() }, dp(46), 26)
-        content.addSpaced(label(event.competition.uppercase(), 12f, ACCENT).apply { letterSpacing = .12f })
-        content.addSpaced(label(event.title, 30f).apply { bold() })
-        content.addSpaced(label(eventTime(event), 14f, MUTED), bottom = 26)
-        content.addSpaced(label("Choose a source", 20f).apply { bold() }, bottom = 8)
-        content.addSpaced(label("If a source is unavailable, try another. Broadcast commercials may still appear.", 12f, MUTED), bottom = 20)
-        val options = column()
-        event.links.forEachIndexed { index, link ->
-            options.addSpaced(action("${index + 1}    ${link.label}    ▶") { openPlayer(link) }, dp(56))
-        }
-        content.addView(ScrollView(this).apply { addView(options) }, LinearLayout.LayoutParams(-1, 0, 1f))
-        setContentView(content)
-        options.getChildAt(0)?.requestFocus()
+    private fun timing(event: SportsEvent): String {
+        val now = System.currentTimeMillis()
+        return event.startsAt?.let {
+            if (it > now) "${Schedule.countdown(it, now)}\n${SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(it))}"
+            else "Started\n${SimpleDateFormat("EEE h:mm a", Locale.getDefault()).format(Date(it))}"
+        } ?: eventTime(event)
     }
 
-    private fun openPlayer(link: StreamLink) {
+    private fun showChannels() {
+        screen = Screen.CHANNELS
+        val event = selectedEvent ?: return showSchedule()
+        val body = shell(" /  ${sport.label}  /  Channels") { showSchedule() }
+        val hero = row()
+        val text = column()
+        text.addSpaced(label(event.competition.uppercase(), 11f, ACCENT), bottom = 8)
+        text.addSpaced(label(event.title, 28f).apply { bold(); maxLines = 2 }, bottom = 10)
+        text.addView(label(eventTime(event), 13f, MUTED))
+        hero.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
+        hero.addView(artwork(sport), LinearLayout.LayoutParams(dp(180), dp(110)))
+        body.addSpaced(hero, bottom = 20)
+        body.addSpaced(label("Choose a channel", 20f).apply { bold() }, bottom = 6)
+        body.addSpaced(label("Starts with Stream 1. Change streams anytime in the player.", 12f, MUTED), bottom = 16)
+        val channels = column()
+        var target: View? = null
+        event.channels.forEach { channel ->
+            val button = action("▶    ${channel.name}") { openChannel(channel) }
+            button.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+            channels.addSpaced(button, dp(52), 10)
+            if (target == null || channel.id == selectedChannel?.id) target = button
+        }
+        body.addView(ScrollView(this).apply { addView(channels) }, LinearLayout.LayoutParams(-1, 0, 1f))
+        target?.requestFocus()
+    }
+
+    private fun openChannel(channel: Channel, initialStream: Int = 0) {
         stopPlayback()
-        screen = Screen.PLAYER; selectedLink = link; retries = 0
+        screen = Screen.PLAYER; selectedChannel = channel; streamIndex = 0; streamOptions = emptyList(); retries = 0
+        buildPlayer()
+        // Start the channel immediately; discovering alternate players must not delay Stream 1.
+        if (initialStream == 0) {
+            streamOptions = listOf(channel.links.first().copy(label = "Stream 1"))
+            resolveAndPlay()
+        }
+        discoveryJob = lifecycleScope.launch {
+            try {
+                streamOptions = withContext(Dispatchers.IO) { resolver.streams(channel) }
+                ensureActive()
+                streamIndex = initialStream.coerceIn(0, streamOptions.lastIndex)
+                updateStreamButton()
+                if (initialStream != 0) resolveAndPlay()
+            } catch (e: CancellationException) { throw e }
+            catch (_: Exception) {
+                streamOptions = channel.links.mapIndexed { index, link -> link.copy(label = "Stream ${index + 1}") }
+                updateStreamButton()
+                if (initialStream != 0) resolveAndPlay()
+            }
+        }
+    }
+
+    private fun buildPlayer() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        val frame = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+        val frame = object : FrameLayout(this) {
+            override fun dispatchKeyEvent(event: KeyEvent): Boolean = handlePlayerKey(event) || super.dispatchKeyEvent(event)
+        }.apply { setBackgroundColor(Color.BLACK) }
         val video = PlayerView(this).apply {
-            useController = true; controllerShowTimeoutMs = 5000
-            controllerAutoShow = false; setShowNextButton(false); setShowPreviousButton(false)
-            setShowFastForwardButton(false); setShowRewindButton(false)
+            useController = true; controllerShowTimeoutMs = 5000; controllerAutoShow = false
+            setShowNextButton(false); setShowPreviousButton(false); setShowFastForwardButton(false); setShowRewindButton(false)
         }
         playerView = video
         frame.addView(video, FrameLayout.LayoutParams(-1, -1))
-        val header = row().apply { setPadding(dp(24), dp(14), dp(24), dp(14)); setBackgroundColor(0xCC0C1015.toInt()) }
-        header.addView(action("‹  Sources") { stopPlayback(); showDetails() })
-        header.addView(label(selectedEvent?.title ?: "Sports", 18f).apply { setPadding(dp(20), 0, dp(10), 0) }, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(action("Reconnect") { retries = 0; resolveAndPlay() })
-        frame.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP))
-        playerHeader = header
-        val overlay = column().apply { gravity = Gravity.CENTER; setPadding(dp(28), dp(24), dp(28), dp(24)); background = shape(0xEE171E26.toInt()) }
-        val message = label("Finding your stream…", 20f).apply { gravity = Gravity.CENTER }
+        val header = row().apply { setPadding(dp(24), dp(14), dp(24), dp(14)); setBackgroundColor(0xE607111D.toInt()) }
+        header.addView(action("‹  Channels") { stopPlayback(); showChannels() })
+        val text = column().apply { setPadding(dp(18), 0, dp(14), 0) }
+        text.addSpaced(label(selectedEvent?.title ?: "Sports", 16f).apply { bold(); maxLines = 1 }, bottom = 5)
+        text.addView(label(selectedChannel?.name.orEmpty(), 11f, MUTED))
+        header.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
+        streamButton = action("Finding streams…") { showStreams() }.apply { isEnabled = false }
+        header.addView(streamButton)
+        frame.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP)); playerHeader = header
+        val overlay = column().apply {
+            gravity = Gravity.CENTER; setPadding(dp(28), dp(24), dp(28), dp(24)); background = shape(0xF0111D2B.toInt())
+        }
+        val message = label("Finding channel streams…", 20f).apply { gravity = Gravity.CENTER }
         playerMessage = message
-        overlay.addSpaced(message, bottom = 16)
-        overlay.addSpaced(action("Try again") { retries = 0; resolveAndPlay() })
-        overlay.addView(action("Choose another source") { stopPlayback(); showDetails() })
-        frame.addView(overlay, FrameLayout.LayoutParams(dp(480), -2, Gravity.CENTER))
-        playerOverlay = overlay
+        overlay.addSpaced(message, bottom = 20)
+        overlay.addSpaced(action("Try again") {
+            if (streamOptions.isEmpty()) selectedChannel?.let { openChannel(it) } else { retries = 0; resolveAndPlay() }
+        })
+        overlay.addSpaced(action("Change stream") { showStreams() })
+        overlay.addView(action("Choose another channel") { stopPlayback(); showChannels() })
+        frame.addView(overlay, FrameLayout.LayoutParams(dp(480), -2, Gravity.CENTER)); playerOverlay = overlay
         video.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
             header.visibility = if (overlay.visibility == View.VISIBLE) View.VISIBLE else visibility
         })
         setContentView(frame)
-        video.requestFocus()
-        resolveAndPlay()
+        overlay.getChildAt(2)?.requestFocus()
+    }
+
+    private fun updateStreamButton() {
+        streamButton?.text = "Stream ${streamIndex + 1} / ${streamOptions.size}  ▾"
+        streamButton?.isEnabled = streamOptions.isNotEmpty()
+    }
+
+    private fun showStreams() {
+        if (streamOptions.isEmpty()) return
+        streamDialog?.dismiss()
+        streamDialog = android.app.AlertDialog.Builder(this)
+            .setTitle("${selectedChannel?.name} · choose stream")
+            .setSingleChoiceItems(streamOptions.map { it.label }.toTypedArray(), streamIndex) { dialog, index ->
+                dialog.dismiss()
+                if (index != streamIndex || player?.isPlaying != true) {
+                    streamIndex = index; retries = 0; updateStreamButton(); resolveAndPlay()
+                }
+            }.setNegativeButton("Cancel", null).create()
+        streamDialog?.setOnDismissListener { if (playerOverlay?.visibility == View.VISIBLE) playerOverlay?.getChildAt(2)?.requestFocus() else streamButton?.requestFocus() }
+        streamDialog?.show()
+        streamDialog?.window?.setBackgroundDrawable(shape(INK, ACCENT))
+    }
+
+    private fun handlePlayerKey(event: KeyEvent): Boolean {
+        if (screen == Screen.PLAYER && event.action == KeyEvent.ACTION_DOWN && streamDialog?.isShowing != true) {
+            if (event.keyCode == KeyEvent.KEYCODE_MENU) { showStreams(); return true }
+            if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP && playerOverlay?.visibility != View.VISIBLE) {
+                playerView?.showController(); playerHeader?.visibility = View.VISIBLE; streamButton?.requestFocus(); return true
+            }
+        }
+        return false
     }
 
     private fun resolveAndPlay() {
-        val link = selectedLink ?: return
-        resolveJob?.cancel(); renewalJob?.cancel(); recoveryJob?.cancel()
-        playerMessage?.text = if (player == null) "Finding your stream…" else "Reconnecting…"
-        if (player?.isPlaying != true) playerOverlay?.visibility = View.VISIBLE
+        val link = streamOptions.getOrNull(streamIndex) ?: return
+        resolveJob?.cancel(); renewalJob?.cancel(); recoveryJob?.cancel(); stableJob?.cancel()
+        player?.stop()
+        playerOverlay?.visibility = View.VISIBLE; playerHeader?.visibility = View.VISIBLE
+        playerMessage?.text = "Opening ${link.label.lowercase()}…"
+        playerOverlay?.getChildAt(2)?.requestFocus()
         resolveJob = lifecycleScope.launch {
             try {
                 val stream = withContext(Dispatchers.IO) { resolver.resolve(link) }
                 ensureActive()
                 if (screen != Screen.PLAYER) return@launch
-                val httpFactory = DefaultHttpDataSource.Factory()
-                    .setUserAgent(PageClient.USER_AGENT).setDefaultRequestProperties(stream.headers)
-                    .setConnectTimeoutMs(12_000).setReadTimeoutMs(15_000)
+                val httpFactory = DefaultHttpDataSource.Factory().setUserAgent(PageClient.USER_AGENT)
+                    .setDefaultRequestProperties(stream.headers).setConnectTimeoutMs(12_000).setReadTimeoutMs(15_000)
                 val media = HlsMediaSource.Factory(httpFactory).createMediaSource(
                     MediaItem.Builder().setUri(stream.url).setMimeType(MimeTypes.APPLICATION_M3U8).build())
                 val activePlayer = player ?: ExoPlayer.Builder(this@MainActivity).build().also {
                     player = it; playerView?.player = it
                     it.addListener(object : Player.Listener {
                         override fun onRenderedFirstFrame() {
-                            playerOverlay?.visibility = View.GONE
-                            playerHeader?.visibility = View.GONE
-                            playerView?.requestFocus()
+                            playerOverlay?.visibility = View.GONE; playerHeader?.visibility = View.GONE; playerView?.requestFocus()
                         }
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
                             stableJob?.cancel()
                             if (isPlaying) stableJob = lifecycleScope.launch { delay(30_000); retries = 0 }
                         }
                         override fun onPlayerError(error: PlaybackException) {
-                            android.util.Log.w("SportsPlayer", error.errorCodeName)
-                            recover()
+                            android.util.Log.w("SportsPlayer", error.errorCodeName); recover()
                         }
                     })
                 }
-                activePlayer.setMediaSource(media)
-                activePlayer.prepare(); activePlayer.playWhenReady = true
-                playerMessage?.text = "Starting the broadcast…"
+                activePlayer.setMediaSource(media); activePlayer.prepare(); activePlayer.playWhenReady = true
+                playerMessage?.text = "Starting ${link.label.lowercase()}…"
                 stream.expiresAtMillis?.let { expires ->
                     renewalJob = lifecycleScope.launch {
                         delay((expires - System.currentTimeMillis() - 60_000).coerceIn(15_000, 21_600_000))
@@ -307,20 +498,20 @@ class MainActivity : ComponentActivity() {
 
     private fun recover() {
         if (screen != Screen.PLAYER || recoveryJob?.isActive == true) return
-        renewalJob?.cancel()
-        retries++
+        renewalJob?.cancel(); retries++
         playerOverlay?.visibility = View.VISIBLE; playerHeader?.visibility = View.VISIBLE
+        playerOverlay?.getChildAt(2)?.requestFocus()
         if (retries > 3) {
-            playerMessage?.text = "This source isn’t available right now. Try again or choose another."
-            playerOverlay?.getChildAt(1)?.requestFocus()
+            playerMessage?.text = "Stream ${streamIndex + 1} isn’t available. Choose another stream or channel."
             return
         }
-        playerMessage?.text = "Stream interrupted. Reconnecting ($retries/3)…"
+        playerMessage?.text = "Stream ${streamIndex + 1} interrupted. Reconnecting ($retries/3)…"
         recoveryJob = lifecycleScope.launch { delay(retries * 3000L); resolveAndPlay() }
     }
 
     private fun stopPlayback() {
-        resolveJob?.cancel(); renewalJob?.cancel(); recoveryJob?.cancel(); stableJob?.cancel()
+        discoveryJob?.cancel(); resolveJob?.cancel(); renewalJob?.cancel(); recoveryJob?.cancel(); stableJob?.cancel()
+        streamDialog?.dismiss(); streamDialog = null
         playerView?.player = null; player?.release(); player = null
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }

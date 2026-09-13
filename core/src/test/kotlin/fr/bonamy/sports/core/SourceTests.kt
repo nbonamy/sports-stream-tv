@@ -9,13 +9,14 @@ import java.util.concurrent.TimeUnit
 class SourceTests {
     @Test fun `catalog only includes match rows and preserves source alternatives`() {
         val html = """<h2>Premier League</h2><a href="/ad">Ad</a><table>
-          <tr data-timestamp="1789340400000"><td class="event-title">Team A vs Team B</td><td class="leaguename">Premier League</td>
+          <tr data-timestamp="1789340400000"><td class="event-title"><img src="/team.png">Team A vs Team B</td><td class="leaguename"><img class="leagueimg" src="https://cdn.livesoccertv.com/league.png">Premier League</td>
           <td><a href="/a">English</a><a href="http://example.test/b">French</a><a href="https://ads.test/x">Ad</a></td></tr>
           <tr><td>No event title</td><td><a href="/c">Skip</a></td></tr></table>"""
         val events = CatalogParser.parse(html, "https://example.test/soccer/")
         assertEquals(1, events.size)
         assertEquals("Team A vs Team B", events[0].title)
         assertEquals(1789340400000, events[0].startsAt)
+        assertEquals("https://cdn.livesoccertv.com/league.png", events[0].leagueIconUrl)
         assertEquals(listOf("https://example.test/a", "https://example.test/b"), events[0].links.map { it.url })
     }
 

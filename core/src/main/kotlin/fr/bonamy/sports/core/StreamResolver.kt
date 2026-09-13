@@ -56,11 +56,11 @@ object PlayerPageParser {
         uri.scheme == "https" && uri.host != null && uri.path.endsWith(".m3u8")
     }.getOrDefault(false)
 
-    fun nextPages(html: String, pageUrl: String): List<String> {
+    fun nextPages(html: String, pageUrl: String, includeAlternatives: Boolean = true): List<String> {
         val doc = Jsoup.parse(html, pageUrl)
         val next = mutableListOf<String>()
         // Prefer the working alternate player, then fall back to the page's current embed.
-        doc.select("a[href]").filter { it.text().trim().equals("Stream 2", true) }
+        doc.select("a[href]").filter { includeAlternatives && it.text().trim().equals("Stream 2", true) }
             .forEach { next += it.absUrl("href") }
         doc.select("iframe[src]").forEach { next += it.absUrl("src") }
         // This provider constructs its iframe from a channel ID and a known embed script.
@@ -79,6 +79,43 @@ object PlayerPageParser {
 }
 
 class StreamResolver(private val http: PageClient = PageClient(), private val trace: (String) -> Unit = {}) {
+    /** Discover selectable streams without resolving signed media URLs or running scripts. */
+    suspend fun streams(channel: Channel): List<StreamLink> {
+        val result = mutableListOf<StreamLink>()
+        for (link in channel.links) {
+            val found = withTimeoutOrNull(20_000) { discover(link.url, SportsRepository.BASE, mutableSetOf(), 0) }.orEmpty()
+            result += found.ifEmpty { listOf(link) }
+        }
+        return result.distinctBy { it.url }.mapIndexed { index, link -> link.copy(label = "Stream ${index + 1}") }
+    }
+
+    private suspend fun discover(url: String, parent: String, visited: MutableSet<String>, depth: Int): List<StreamLink> {
+        if (depth > 3 || !visited.add(url)) return emptyList()
+        try {
+            val page = http.get(url, mapOf("Referer" to parent))
+            val options = streamOptions(page.body, page.url)
+            if (options.size > 1) return options
+            for (next in PlayerPageParser.nextPages(page.body, page.url, false)) {
+                val found = discover(next, page.url, visited, depth + 1)
+                if (found.isNotEmpty()) return found
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (_: Exception) { /* Playback still gets a chance with the original channel URL. */ }
+        return emptyList()
+    }
+
+    companion object {
+        fun streamOptions(html: String, pageUrl: String): List<StreamLink> = Jsoup.parse(html, pageUrl)
+            .select("a[href]").mapNotNull { anchor ->
+                val number = Regex("(?i)^stream\\s*#?\\s*(\\d+)$").matchEntire(anchor.text().trim())?.groupValues?.get(1)?.toIntOrNull()
+                    ?: return@mapNotNull null
+                val url = anchor.absUrl("href")
+                val uri = runCatching { URI(url) }.getOrNull() ?: return@mapNotNull null
+                if (uri.scheme != "https" || uri.host != URI(pageUrl).host) return@mapNotNull null
+                number to StreamLink("Stream $number", url)
+            }.sortedBy { it.first }.map { it.second }.distinctBy { it.url }
+    }
+
     suspend fun resolve(link: StreamLink): ResolvedStream = withTimeoutOrNull(60_000) {
         val visited = mutableSetOf<String>()
         walk(link.url, SportsRepository.BASE, visited, 0)
@@ -101,11 +138,11 @@ class StreamResolver(private val http: PageClient = PageClient(), private val tr
                     return ResolvedStream(playlist, headers, expiry)
                 }
             }
-            for (next in PlayerPageParser.nextPages(page.body, page.url)) {
+            for (next in PlayerPageParser.nextPages(page.body, page.url, false)) {
                 walk(next, page.url, visited, depth + 1)?.let { return it }
             }
         } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { trace("${URI(url).host}: ${e.javaClass.simpleName}") }
+        catch (e: Exception) { trace("${URI(url).host}: ${if (e is SourceUnavailable) e.message else e.javaClass.simpleName}") }
         return null
     }
 }
