@@ -35,11 +35,14 @@ Both are ignored by Git. Preserve both for future in-place updates.
   of full-width event cards. League icons come from the provider. Refresh reloads
   the feed, with pulsing event placeholders while it loads; a compact breadcrumb
   Back control returns to the sport home.
-- Event: choose a channel. Named numbered alternatives are grouped together.
+- Event: the league logo appears in the header when available, with the sport
+  icon as fallback. Choose a channel; named numbered alternatives are grouped together.
   Generic provider links use their channel page names derived from the URL.
 - Player: starts Stream 1 immediately, discovers alternatives in the background.
-  Press Up to focus the stream selector, or Menu to open it directly.
-  The error overlay also exposes Change stream, Try again, and another channel.
+  Left/Right switches streams and wraps at either end. Up focuses Back; Down
+  focuses pause/play or retry. OK activates the focused control, or toggles
+  playback when controls are hidden. Controls fade after three seconds of playback.
+  Connecting uses a quiet animation; unavailable streams show a compact retry control.
 - Back: player → channels → schedule → sport home → exit.
   Returning to a schedule restores event focus and scroll position.
 
@@ -83,7 +86,7 @@ URL renewal, and three bounded reconnection attempts.
 Supported player patterns include wikisport frames, igniteandship embeds, direct
 HLS configurations, and the inspected character-array URL format. Selecting a
 stream follows that stream's embeds; it never silently jumps to Stream 2.
-Unsupported or offline sources expose the stream and channel selectors.
+Unsupported or offline sources retain the stream arrows, retry control, and Back to channels.
 
 Required headers are passed to Media3 for playlists, keys, and media segments.
 Signed URLs are not persisted or logged. Diagnostics only identify provider hosts
@@ -98,10 +101,24 @@ or P2P transport. Commercials within broadcasts remain.
 - Live schedules parsed for the original eight featured sports; NBA returned zero
   NBA fixtures. The provider has stale WNBA listings on that page.
 - Sony TV at `192.168.1.4`: home artwork, schedule sections and countdowns,
-  channel selection, and the two-stream picker visually checked.
+  channel selection, and stream selection visually checked.
 - Tennis Channel +1 exposes two selectable streams. During this pass both were
   unavailable; the original 0.1.0 resolver also failed against the same provider.
   Earlier 0.1.0 testing had successfully fetched its HLS and a media segment.
 - Sustained native playback and scheduled URL renewal remain unverified with the
   current provider failures. The emulator retains an August clock, so use the
   correctly dated physical TV for network verification.
+
+## Player UI preview
+
+The debug build includes a network-free player preview, excluded from release:
+
+```sh
+adb shell am start -n fr.bonamy.sports/.PlayerPreviewActivity --es state unavailable
+```
+
+States: `connecting`, `playing`, `paused`, `unavailable`; optional `--ei streams 1`
+checks a channel without alternatives. This exercises the real player controls
+without depending on provider availability. Emulator checks cover circular button
+bounds and centered icons, retry, stream wraparound, control fading, pause, and
+disabled arrows for single-stream channels. It does not verify media playback.

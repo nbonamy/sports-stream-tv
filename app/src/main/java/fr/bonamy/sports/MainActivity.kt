@@ -46,11 +46,7 @@ class MainActivity : ComponentActivity() {
     private var stableJob: Job? = null
     private var player: ExoPlayer? = null
     private var playerView: PlayerView? = null
-    private var playerMessage: TextView? = null
-    private var playerOverlay: LinearLayout? = null
-    private var playerHeader: LinearLayout? = null
-    private var streamButton: Button? = null
-    private var streamDialog: android.app.AlertDialog? = null
+    private var playerChrome: PlayerChrome? = null
     private var retries = 0
     private var focusedEventId: String? = null
     private var scheduleScroll = intArrayOf(0, 0)
@@ -137,7 +133,7 @@ class MainActivity : ComponentActivity() {
         }, LinearLayout.LayoutParams(dp(32), dp(36)).apply { marginEnd = dp(12) })
         header.addView(label("SPORTS", 17f).apply { bold(); letterSpacing = .16f })
         header.addView(label(crumb, 12f, MUTED).apply { setPadding(dp(22), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(label(SimpleDateFormat("EEE, MMM d  ·  h:mm a", Locale.getDefault()).format(Date()), 11f, MUTED))
+        header.addView(label(SimpleDateFormat("EEE, MMM d  ·  h:mm a", Locale.getDefault()).format(Date()), 12f, MUTED))
         root.addView(header, LinearLayout.LayoutParams(-1, dp(56)))
         val body = column().apply { setPadding(dp(36), dp(8), dp(36), dp(24)) }
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
@@ -340,16 +336,21 @@ class MainActivity : ComponentActivity() {
         screen = Screen.CHANNELS
         val event = selectedEvent ?: return showSchedule()
         val body = shell(" /  ${sport.label}  /  Channels") { showSchedule() }
-        val hero = row()
-        val text = column()
+        val hero = row().apply { gravity = Gravity.TOP }
+        val eventArtwork = artwork(sport)
+        hero.addView(eventArtwork, LinearLayout.LayoutParams(dp(132), dp(96)).apply { marginEnd = dp(22) })
+        event.leagueIconUrl?.let { url ->
+            iconJobs += lifecycleScope.launch {
+                LeagueIcons.load(url)?.let { eventArtwork.setImageBitmap(it) }
+            }
+        }
+        val text = column().apply { minimumHeight = dp(96); gravity = Gravity.CENTER_VERTICAL }
         text.addSpaced(label(event.competition.uppercase(), 11f, ACCENT), bottom = 8)
         text.addSpaced(label(event.title, 28f).apply { bold(); maxLines = 2 }, bottom = 10)
         text.addView(label(eventTime(event), 13f, MUTED))
         hero.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
-        hero.addView(artwork(sport), LinearLayout.LayoutParams(dp(132), dp(96)))
         body.addSpaced(hero, bottom = 20)
-        body.addSpaced(label("Choose a channel", 20f).apply { bold() }, bottom = 6)
-        body.addSpaced(label("Starts with Stream 1. Change streams anytime in the player.", 12f, MUTED), bottom = 16)
+        body.addSpaced(label("Choose a channel", 20f).apply { bold() }, bottom = 16)
         val channels = column()
         var target: View? = null
         event.channels.forEach { channel ->
@@ -376,12 +377,12 @@ class MainActivity : ComponentActivity() {
                 streamOptions = withContext(Dispatchers.IO) { resolver.streams(channel) }
                 ensureActive()
                 streamIndex = initialStream.coerceIn(0, streamOptions.lastIndex)
-                updateStreamButton()
+                updateStreamControls()
                 if (initialStream != 0) resolveAndPlay()
             } catch (e: CancellationException) { throw e }
             catch (_: Exception) {
                 streamOptions = channel.links.mapIndexed { index, link -> link.copy(label = "Stream ${index + 1}") }
-                updateStreamButton()
+                updateStreamControls()
                 if (initialStream != 0) resolveAndPlay()
             }
         }
@@ -393,77 +394,53 @@ class MainActivity : ComponentActivity() {
             override fun dispatchKeyEvent(event: KeyEvent): Boolean = handlePlayerKey(event) || super.dispatchKeyEvent(event)
         }.apply { setBackgroundColor(Color.BLACK) }
         val video = PlayerView(this).apply {
-            useController = true; controllerShowTimeoutMs = 5000; controllerAutoShow = false
-            setShowNextButton(false); setShowPreviousButton(false); setShowFastForwardButton(false); setShowRewindButton(false)
+            useController = false; isFocusable = false
+            setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
         }
         playerView = video
         frame.addView(video, FrameLayout.LayoutParams(-1, -1))
-        val header = row().apply { setPadding(dp(24), dp(14), dp(24), dp(14)); setBackgroundColor(0xE607111D.toInt()) }
-        header.addView(action("‹  Channels") { stopPlayback(); showChannels() })
-        val text = column().apply { setPadding(dp(18), 0, dp(14), 0) }
-        text.addSpaced(label(selectedEvent?.title ?: "Sports", 16f).apply { bold(); maxLines = 1 }, bottom = 5)
-        text.addView(label(selectedChannel?.name.orEmpty(), 11f, MUTED))
-        header.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
-        streamButton = action("Finding streams…") { showStreams() }.apply { isEnabled = false }
-        header.addView(streamButton)
-        frame.addView(header, FrameLayout.LayoutParams(-1, -2, Gravity.TOP)); playerHeader = header
-        val overlay = column().apply {
-            gravity = Gravity.CENTER; setPadding(dp(28), dp(24), dp(28), dp(24)); background = shape(0xF0111D2B.toInt())
-        }
-        val message = label("Finding channel streams…", 20f).apply { gravity = Gravity.CENTER }
-        playerMessage = message
-        overlay.addSpaced(message, bottom = 20)
-        overlay.addSpaced(action("Try again") {
-            if (streamOptions.isEmpty()) selectedChannel?.let { openChannel(it) } else { retries = 0; resolveAndPlay() }
-        })
-        overlay.addSpaced(action("Change stream") { showStreams() })
-        overlay.addView(action("Choose another channel") { stopPlayback(); showChannels() })
-        frame.addView(overlay, FrameLayout.LayoutParams(dp(480), -2, Gravity.CENTER)); playerOverlay = overlay
-        video.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
-            header.visibility = if (overlay.visibility == View.VISIBLE) View.VISIBLE else visibility
-        })
+        val chrome = PlayerChrome(this, selectedEvent?.title ?: "Sports", selectedChannel?.name.orEmpty(),
+            onBack = { stopPlayback(); showChannels() },
+            onPrevious = { changeStream(-1) }, onNext = { changeStream(1) },
+            onRetry = {
+                if (streamOptions.isEmpty()) selectedChannel?.let { openChannel(it) }
+                else { retries = 0; resolveAndPlay() }
+            },
+            onTogglePlay = { player?.let { if (it.playWhenReady) it.pause() else it.play() } })
+        playerChrome = chrome
+        frame.addView(chrome, FrameLayout.LayoutParams(-1, -1))
         setContentView(frame)
-        overlay.getChildAt(2)?.requestFocus()
+        updateStreamControls()
+        chrome.requestFocus()
     }
 
-    private fun updateStreamButton() {
-        streamButton?.text = "Stream ${streamIndex + 1} / ${streamOptions.size}  ▾"
-        streamButton?.isEnabled = streamOptions.isNotEmpty()
+    private fun updateStreamControls() {
+        playerChrome?.setStreams(streamIndex, streamOptions.size)
     }
 
-    private fun showStreams() {
-        if (streamOptions.isEmpty()) return
-        streamDialog?.dismiss()
-        streamDialog = android.app.AlertDialog.Builder(this)
-            .setTitle("${selectedChannel?.name} · choose stream")
-            .setSingleChoiceItems(streamOptions.map { it.label }.toTypedArray(), streamIndex) { dialog, index ->
-                dialog.dismiss()
-                if (index != streamIndex || player?.isPlaying != true) {
-                    streamIndex = index; retries = 0; updateStreamButton(); resolveAndPlay()
-                }
-            }.setNegativeButton("Cancel", null).create()
-        streamDialog?.setOnDismissListener { if (playerOverlay?.visibility == View.VISIBLE) playerOverlay?.getChildAt(2)?.requestFocus() else streamButton?.requestFocus() }
-        streamDialog?.show()
-        streamDialog?.window?.setBackgroundDrawable(shape(INK, ACCENT))
+    private fun changeStream(direction: Int) {
+        if (streamOptions.size < 2) return
+        streamIndex = Math.floorMod(streamIndex + direction, streamOptions.size)
+        retries = 0
+        updateStreamControls()
+        resolveAndPlay()
     }
 
     private fun handlePlayerKey(event: KeyEvent): Boolean {
-        if (screen == Screen.PLAYER && event.action == KeyEvent.ACTION_DOWN && streamDialog?.isShowing != true) {
-            if (event.keyCode == KeyEvent.KEYCODE_MENU) { showStreams(); return true }
-            if (event.keyCode == KeyEvent.KEYCODE_DPAD_UP && playerOverlay?.visibility != View.VISIBLE) {
-                playerView?.showController(); playerHeader?.visibility = View.VISIBLE; streamButton?.requestFocus(); return true
-            }
+        if (screen != Screen.PLAYER) return false
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            if (event.keyCode == KeyEvent.KEYCODE_MEDIA_PLAY) { player?.play(); return true }
+            if (event.keyCode == KeyEvent.KEYCODE_MEDIA_PAUSE) { player?.pause(); return true }
         }
-        return false
+        return playerChrome?.handleKey(event) == true
     }
 
     private fun resolveAndPlay() {
         val link = streamOptions.getOrNull(streamIndex) ?: return
         resolveJob?.cancel(); renewalJob?.cancel(); recoveryJob?.cancel(); stableJob?.cancel()
         player?.stop()
-        playerOverlay?.visibility = View.VISIBLE; playerHeader?.visibility = View.VISIBLE
-        playerMessage?.text = "Opening ${link.label.lowercase()}…"
-        playerOverlay?.getChildAt(2)?.requestFocus()
+        updateStreamControls()
+        playerChrome?.showConnecting()
         resolveJob = lifecycleScope.launch {
             try {
                 val stream = withContext(Dispatchers.IO) { resolver.resolve(link) }
@@ -477,9 +454,17 @@ class MainActivity : ComponentActivity() {
                     player = it; playerView?.player = it
                     it.addListener(object : Player.Listener {
                         override fun onRenderedFirstFrame() {
-                            playerOverlay?.visibility = View.GONE; playerHeader?.visibility = View.GONE; playerView?.requestFocus()
+                            playerChrome?.showPlayback(it.isPlaying)
+                        }
+                        override fun onPlaybackStateChanged(playbackState: Int) {
+                            when (playbackState) {
+                                Player.STATE_BUFFERING -> playerChrome?.showConnecting()
+                                Player.STATE_READY -> playerChrome?.showPlayback(it.isPlaying)
+                                Player.STATE_ENDED -> playerChrome?.showUnavailable()
+                            }
                         }
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
+                            if (it.playbackState == Player.STATE_READY) playerChrome?.showPlayback(isPlaying)
                             stableJob?.cancel()
                             if (isPlaying) stableJob = lifecycleScope.launch { delay(30_000); retries = 0 }
                         }
@@ -489,7 +474,6 @@ class MainActivity : ComponentActivity() {
                     })
                 }
                 activePlayer.setMediaSource(media); activePlayer.prepare(); activePlayer.playWhenReady = true
-                playerMessage?.text = "Starting ${link.label.lowercase()}…"
                 stream.expiresAtMillis?.let { expires ->
                     renewalJob = lifecycleScope.launch {
                         delay((expires - System.currentTimeMillis() - 60_000).coerceIn(15_000, 21_600_000))
@@ -504,19 +488,16 @@ class MainActivity : ComponentActivity() {
     private fun recover() {
         if (screen != Screen.PLAYER || recoveryJob?.isActive == true) return
         renewalJob?.cancel(); retries++
-        playerOverlay?.visibility = View.VISIBLE; playerHeader?.visibility = View.VISIBLE
-        playerOverlay?.getChildAt(2)?.requestFocus()
         if (retries > 3) {
-            playerMessage?.text = "Stream ${streamIndex + 1} isn’t available. Choose another stream or channel."
+            playerChrome?.showUnavailable()
             return
         }
-        playerMessage?.text = "Stream ${streamIndex + 1} interrupted. Reconnecting ($retries/3)…"
+        playerChrome?.showConnecting()
         recoveryJob = lifecycleScope.launch { delay(retries * 3000L); resolveAndPlay() }
     }
 
     private fun stopPlayback() {
         discoveryJob?.cancel(); resolveJob?.cancel(); renewalJob?.cancel(); recoveryJob?.cancel(); stableJob?.cancel()
-        streamDialog?.dismiss(); streamDialog = null
         playerView?.player = null; player?.release(); player = null
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
