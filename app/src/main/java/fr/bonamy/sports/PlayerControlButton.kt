@@ -9,7 +9,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 
 /** Circular controls with icons centered by geometry rather than font metrics. */
 internal class PlayerControlButton(context: Context, initialIcon: Icon, description: String) : View(context) {
-    enum class Icon { PREVIOUS, NEXT, PLAY, PAUSE, RETRY }
+    enum class Icon { PREVIOUS, NEXT, PLAY, PAUSE }
     var icon = initialIcon
         set(value) { field = value; invalidate() }
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply { strokeCap = Paint.Cap.ROUND; strokeJoin = Paint.Join.ROUND }
@@ -49,22 +49,6 @@ internal class PlayerControlButton(context: Context, initialIcon: Icon, descript
             Icon.PLAY -> {
                 paint.style = Paint.Style.FILL
                 canvas.drawPath(Path().apply { moveTo(-6f, -8f); lineTo(6f, 0f); lineTo(-6f, 8f); close() }, paint)
-            }
-            Icon.RETRY -> {
-                paint.style = Paint.Style.FILL
-                val path = Path().apply {
-                    moveTo(12f, 5f)
-                    lineTo(12f, 1f)
-                    lineTo(7f, 6f)
-                    lineTo(12f, 11f)
-                    lineTo(12f, 7f)
-                    arcTo(RectF(6f, 7f, 18f, 19f), -90f, 270f)
-                    lineTo(4f, 13f)
-                    arcTo(RectF(4f, 5f, 20f, 21f), 180f, -270f)
-                    close()
-                    offset(-12f, -11f)
-                }
-                canvas.drawPath(path, paint)
             }
         }
         canvas.restoreToCount(save)

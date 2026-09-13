@@ -11,6 +11,8 @@ data class ResolvedStream(val url: String, val headers: Map<String, String>, val
 
 object PlayerPageParser {
     fun playlist(html: String): String? {
+        BarecropConfigParser.playlist(html)?.takeIf { isHls(it) }?.let { return it }
+        IndexedPlaylistParser.parse(html)?.takeIf { isHls(it) }?.let { return it }
         // Parse data only. Never evaluate JavaScript or load the provider's advertising scripts.
         val expression = Regex("""return\s*\(\s*(\[\s*".*?])\.join\(\s*""\s*\)(.*?)\)\s*;""", RegexOption.DOT_MATCHES_ALL)
             .find(html)
@@ -39,9 +41,17 @@ object PlayerPageParser {
             }
             if (isHls(value)) return value
         }
-        return Regex("""(?:source|file|src)\s*[:=]\s*['"](https?[^'"\s]+)['"]""")
+        val direct = Regex("""(?:source|file|src)\s*[:=]\s*['"](https?[^'"\s]+)['"]""")
             .findAll(html).map { it.groupValues[1].replace("\\/", "/").replace("&amp;", "&") }
             .firstOrNull { isHls(it) }
+        if (direct != null) return direct
+        // Clappr may refer to a literal URL declared separately, as on la18hd.
+        return Regex("""\bsource\s*:\s*([A-Za-z_$][\w$]*)\s*[,}]""")
+            .findAll(html).mapNotNull { source ->
+                val name = Regex.escape(source.groupValues[1])
+                Regex("""\b(?:var|let|const)\s+$name\s*=\s*(['"])(https?[^'"\s]+)\1\s*;""")
+                    .find(html)?.groupValues?.get(2)?.replace("\\/", "/")?.replace("&amp;", "&")
+            }.firstOrNull { isHls(it) }
     }
 
     private fun decodeArray(json: String): String? = runCatching {
@@ -72,7 +82,7 @@ object PlayerPageParser {
         return next.filter { candidate ->
             runCatching {
                 val uri = URI(candidate)
-                uri.scheme == "https" && (uri.host == URI(pageUrl).host || uri.host in setOf("wikisport.info", "igniteandship.com", "in-stream.click"))
+                uri.scheme == "https" && (uri.host == URI(pageUrl).host || uri.host in setOf("wikisport.info", "igniteandship.com", "in-stream.click", "la18hd.su", "stream-xhd.com", "barecrop.net"))
             }.getOrDefault(false)
         }.distinct()
     }

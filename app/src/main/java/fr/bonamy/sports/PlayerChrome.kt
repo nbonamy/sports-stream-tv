@@ -3,6 +3,7 @@ package fr.bonamy.sports
 import android.animation.ValueAnimator
 import android.content.Context
 import android.graphics.*
+import android.graphics.drawable.StateListDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.KeyEvent
@@ -31,11 +32,23 @@ internal class PlayerChrome(
     private val top = FrameLayout(context)
     private val bottom = FrameLayout(context)
     private val counter = context.label("Stream 1", 13f, MUTED)
-    private val back = control(PlayerControlButton.Icon.PREVIOUS, "Back to channels", onBack)
+    private val back = control(PlayerControlButton.Icon.PREVIOUS, "Back to channels", onBack).apply {
+        isFocusable = false
+    }
     private val previous = control(PlayerControlButton.Icon.PREVIOUS, "Previous stream", onPrevious)
     private val next = control(PlayerControlButton.Icon.NEXT, "Next stream", onNext)
     private val transport = control(PlayerControlButton.Icon.PAUSE, "Pause", onTogglePlay)
-    private val retry = control(PlayerControlButton.Icon.RETRY, "Retry stream", onRetry)
+    private val retry = context.label("Retry", 15f).apply {
+        gravity = Gravity.CENTER
+        isFocusable = true; isClickable = true
+        contentDescription = "Retry stream"
+        background = StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), context.shape(0xFF172431.toInt()))
+            addState(intArrayOf(android.R.attr.state_pressed), context.shape(0xFF172431.toInt()))
+            addState(intArrayOf(), context.shape(Color.TRANSPARENT))
+        }
+        setOnClickListener { onRetry() }
+    }
     private val failure = context.column().apply { gravity = Gravity.CENTER }
     private val hideControls = Runnable { hide() }
     private val controls get() = listOf(top, bottom, previous, next)
@@ -67,9 +80,9 @@ internal class PlayerChrome(
         addView(next, LayoutParams(context.dp(56), context.dp(56), Gravity.END or Gravity.CENTER_VERTICAL)
             .apply { rightMargin = context.dp(28) })
         addView(connecting, LayoutParams(context.dp(140), context.dp(140), Gravity.CENTER))
-        failure.addView(retry, LinearLayout.LayoutParams(context.dp(52), context.dp(52)))
+        failure.addView(retry, LinearLayout.LayoutParams(context.dp(100), context.dp(40)))
         addView(failure, LayoutParams(context.dp(320), -2, Gravity.CENTER))
-        failure.translationY = context.dp(100).toFloat()
+        failure.translationY = context.dp(84).toFloat()
         showConnecting()
     }
 
@@ -146,7 +159,7 @@ internal class PlayerChrome(
                     if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && next.isEnabled) onNext()
                 }
             }
-            KeyEvent.KEYCODE_DPAD_UP -> { reveal(); back.requestFocus() }
+            KeyEvent.KEYCODE_DPAD_UP -> { reveal(); requestFocus() }
             KeyEvent.KEYCODE_DPAD_DOWN -> {
                 reveal()
                 when (mode) {

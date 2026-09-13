@@ -5,7 +5,7 @@ browse current and upcoming events, choose a channel, and watch with Media3.
 
 Home rows: **Football, Tennis, Rugby, F1, Golf**, then **NFL, NBA, MLB, NHL, + More**.
 More opens MMA, Boxing, Motorsport, College Football, Basketball,
-Volleyball, and Handball. Tennis Channel +1 remains a permanent channel shortcut.
+Volleyball, and Handball. Schedules and channel listings come from the provider.
 
 ## Build and deploy
 
@@ -28,6 +28,12 @@ A debug install uses a different signing identity than the release build.
 The first release build generates `keys/sports.jks` and `signing.properties`.
 Both are ignored by Git. Preserve both for future in-place updates.
 
+To probe one channel without scanning the catalog:
+
+```sh
+./gradlew :core:probe --args=https://freestreams-live1h.pk/winsports/
+```
+
 ## Navigation
 
 - Home: arrow keys browse sport tiles; OK opens the sport's schedule.
@@ -39,11 +45,14 @@ Both are ignored by Git. Preserve both for future in-place updates.
   icon as fallback. Choose a channel; named numbered alternatives are grouped together.
   Generic provider links use their channel page names derived from the URL.
 - Player: starts Stream 1 immediately, discovers alternatives in the background.
-  Left/Right switches streams; arrows appear only when a stream exists in that direction. Up focuses Back; Down
+  Left/Right switches streams; arrows appear only when a stream exists in that direction. Up reveals controls; Down
   focuses pause/play or retry. OK activates the focused control, or toggles
   playback when controls are hidden. Controls fade after three seconds of playback.
   Connecting uses a quiet blue animation; unavailable streams use a red variation with retry.
+  Failed source resolution goes straight to the error state; automatic reconnection
+  is reserved for playback errors.
 - Back: player → channels → schedule → sport home → exit.
+  Header back icons stay outside remote focus navigation; use the remote's Back button.
   Returning to a schedule restores event focus and scroll position.
 
 ## Schedule timing
@@ -84,7 +93,7 @@ website scripts. `app/` contains the TV navigation, playback, lifecycle, signed
 URL renewal, and three bounded reconnection attempts.
 
 Supported player patterns include wikisport frames, igniteandship embeds, direct
-HLS configurations, and the inspected character-array URL format. Selecting a
+HLS configurations, the inspected character-array URL format, la18hd Clappr embeds with literal playback URLs, stream-xhd indexed URL data, and barecrop encoded player settings. Selecting a
 stream follows that stream's embeds; it never silently jumps to Stream 2.
 Unsupported or offline sources retain the stream arrows, retry control, and Back to channels.
 
@@ -95,18 +104,23 @@ or P2P transport. Commercials within broadcasts remain.
 
 ## Verification — September 13, 2026
 
-- 14 core tests cover parsing, channel grouping, stream ordering, cancellation,
-  timezone conversion, year boundaries, schedule transitions, and countdowns.
+- 20 core tests cover parsing, channel grouping, stream ordering, cancellation,
+  timezone conversion, year boundaries, schedule transitions, countdowns, and the
+  Win Sports, DirecTV, and Tennis Stream 2 embed chains with their request headers
+  and encoded player data.
 - Debug/release builds and Android lint pass (zero errors).
 - Live schedules parsed for the original eight featured sports; NBA returned zero
   NBA fixtures. The provider has stale WNBA listings on that page.
 - Sony TV at `192.168.1.4`: home artwork, schedule sections and countdowns,
   channel selection, and stream selection visually checked.
-- Tennis Channel +1 exposes two selectable streams. During this pass both were
-  unavailable; the original 0.1.0 resolver also failed against the same provider.
-  Earlier 0.1.0 testing had successfully fetched its HLS and a media segment.
-- Sustained native playback and scheduled URL renewal remain unverified with the
-  current provider failures. The emulator retains an August clock, so use the
+- Tennis Channel exposes two selectable streams. Stream 2 resolves through
+  barecrop and returns a valid HLS playlist and video segment; Stream 1 returned HTTP 404.
+  The Stream 2 update is verified locally and awaits TV deployment.
+- Win Sports: the resolver fetched a valid HLS playlist and a media segment (HTTP 200);
+  native playback was visually confirmed on the Sony TV through the schedule channel.
+- DirecTV Sports: decoded a fresh stream-xhd response, fetched the media playlist
+  and video segment, and visually confirmed native playback on the Sony TV.
+- Long-duration playback and scheduled URL renewal remain unverified. The emulator retains an August clock, so use the
   correctly dated physical TV for network verification.
 
 ## Player UI preview

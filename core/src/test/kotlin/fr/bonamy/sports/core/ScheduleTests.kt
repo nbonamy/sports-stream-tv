@@ -12,7 +12,7 @@ class ScheduleTests {
         assertEquals(ScheduleSection.CURRENT, Schedule.section(event(now), Sport.FOOTBALL, now))
         assertEquals(ScheduleSection.EARLIER, Schedule.section(event(now - 3 * 3_600_000), Sport.FOOTBALL, now))
         assertEquals(ScheduleSection.UNKNOWN, Schedule.section(event(null), Sport.FOOTBALL, now))
-        assertEquals(ScheduleSection.CHANNELS, Schedule.section(SportsRepository.tennisChannel, Sport.TENNIS, now))
+        assertEquals(ScheduleSection.CHANNELS, Schedule.section(event(null).copy(isChannel = true), Sport.TENNIS, now))
     }
 
     @Test fun `countdowns round remaining minutes up and format hours and days`() {

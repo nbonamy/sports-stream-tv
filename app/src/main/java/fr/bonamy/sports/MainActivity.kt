@@ -124,7 +124,7 @@ class MainActivity : ComponentActivity() {
         val root = column().apply { background = browserBackground() }
         val header = row().apply { setPadding(dp(36), 0, dp(36), 0) }
         if (back != null) header.addView(label("‹", 24f, MUTED).apply {
-            isFocusable = true; isClickable = true; gravity = Gravity.CENTER; contentDescription = "Back"
+            isFocusable = false; isClickable = true; gravity = Gravity.CENTER; contentDescription = "Back"
             background = android.graphics.drawable.StateListDrawable().apply {
                 addState(intArrayOf(android.R.attr.state_focused), shape(INK, ACCENT))
                 addState(intArrayOf(), shape(Color.TRANSPARENT))
@@ -208,7 +208,7 @@ class MainActivity : ComponentActivity() {
         fun render() {
             val entries = schedules[sport].orEmpty()
             val now = System.currentTimeMillis()
-            val all = (if (sport == Sport.TENNIS) listOf(SportsRepository.tennisChannel) + entries else entries)
+            val all = entries
                 .distinctBy { it.id }.filter { Schedule.section(it, sport, now) != ScheduleSection.EARLIER }
             if (!firstRender) rememberSchedule()
             val restoreFocus = if (firstRender) focusedEventId else currentFocus?.tag as? String
@@ -482,6 +482,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
             } catch (e: CancellationException) { throw e }
+            catch (_: SourceUnavailable) { playerChrome?.showUnavailable() }
             catch (_: Exception) { recover() }
         }
     }

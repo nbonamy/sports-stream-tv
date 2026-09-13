@@ -111,7 +111,5 @@ class SportsRepository(private val http: PageClient = PageClient()) {
     }
     companion object {
         const val BASE = "https://freestreams-live1h.pk/"
-        val tennisChannel = SportsEvent("Tennis Channel +1", "TENNIS CHANNEL", "24/7 channel", null,
-            listOf(StreamLink("Tennis Channel +1", BASE + "tennis-channel-1/")), isChannel = true)
     }
 }
