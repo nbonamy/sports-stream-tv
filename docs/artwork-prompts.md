@@ -2,6 +2,15 @@
 
 Generated with the built-in imagegen tool on September 13, 2026. Images are bundled in `app/src/main/res/drawable-nodpi/`. Labels are rendered natively by the app.
 
+## nhl
+
+Use case: stylized-concept
+Asset type: NHL ice hockey sport tile artwork for a premium Android TV sports browsing app.
+Subject: one black rubber ice hockey puck in the foreground with a short black and silver hockey stick blade and partial shaft arranged diagonally behind it as one compact recognizable icon. Entire objects contained within the frame with generous margins.
+Scene/backdrop: seamless midnight navy #07111D, restrained blue halo and soft ground shadow, no horizon.
+Style: polished realistic 3D product illustration, sophisticated tactile materials, cool blue rim lighting, crisp detail. Composition: landscape 3:2 image, entire subject centered in upper 60 percent with generous padding; bottom 25 percent quiet empty navy for app label. Match a coherent family of sport icons.
+Constraints: no text, no lettering, no brand marks, no logos, no watermark, no people, no border, no UI.
+
 ## football
 
 Use case: stylized-concept

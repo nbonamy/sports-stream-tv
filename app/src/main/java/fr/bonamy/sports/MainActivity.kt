@@ -109,15 +109,21 @@ class MainActivity : ComponentActivity() {
         Sport.NFL -> R.drawable.sport_nfl
         Sport.NBA -> R.drawable.sport_nba
         Sport.MLB -> R.drawable.sport_mlb
+        Sport.NHL -> R.drawable.sport_nhl
         Sport.GOLF -> R.drawable.sport_golf
         else -> R.drawable.sport_more
     }
 
-    private fun artwork(item: Sport?) = ImageView(this).apply {
+    private fun artwork(item: Sport?, homeTile: Boolean = false) = ImageView(this).apply {
         val resource = art(item)
         val bitmap = artworkCache.get(resource) ?: android.graphics.BitmapFactory.decodeResource(resources, resource,
             android.graphics.BitmapFactory.Options().apply { inSampleSize = 2 }).also { artworkCache.put(resource, it) }
-        setImageBitmap(bitmap); scaleType = ImageView.ScaleType.FIT_CENTER
+        if (homeTile) {
+            setImageDrawable(SportTileDrawable(bitmap, dp(10).toFloat(), if (item == Sport.F1) .84f else 1f, dp(7).toFloat()))
+            scaleType = ImageView.ScaleType.FIT_XY
+        } else {
+            setImageBitmap(bitmap); scaleType = ImageView.ScaleType.FIT_CENTER
+        }
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
     }
 
@@ -159,14 +165,16 @@ class MainActivity : ComponentActivity() {
                 val key = item?.name ?: "MORE"
                 val tile = FrameLayout(this).apply {
                     id = View.generateViewId(); tag = key
-                    isFocusable = true; isClickable = true; background = focusBackground()
+                    isFocusable = true; isClickable = true
+                    background = android.graphics.drawable.StateListDrawable().apply {
+                        addState(intArrayOf(android.R.attr.state_focused), shape(Color.TRANSPARENT, ACCENT))
+                        addState(intArrayOf(android.R.attr.state_pressed), shape(Color.TRANSPARENT, ACCENT))
+                        addState(intArrayOf(), shape(Color.TRANSPARENT).apply { setStroke(dp(1), Color.rgb(54, 64, 76)) })
+                    }
                     setPadding(dp(3), dp(3), dp(3), dp(3))
-                    addView(artwork(item).apply {
-                        scaleType = ImageView.ScaleType.CENTER_CROP
-                        background = shape(INK); clipToOutline = true
-                    }, FrameLayout.LayoutParams(-1, -1))
+                    addView(artwork(item, homeTile = true), FrameLayout.LayoutParams(-1, -1))
                     addView(label(item?.label ?: "+ More", 18f).apply { bold(); gravity = Gravity.CENTER },
-                        FrameLayout.LayoutParams(-1, dp(34), Gravity.BOTTOM).apply { bottomMargin = dp(6) })
+                        FrameLayout.LayoutParams(-1, dp(30), Gravity.BOTTOM).apply { bottomMargin = dp(2) })
                     contentDescription = item?.label ?: "More sports"
                     setOnClickListener {
                         if (!more) homeFocus = key
@@ -182,7 +190,6 @@ class MainActivity : ComponentActivity() {
         }
         body.addView(ScrollView(this).apply { isVerticalScrollBarEnabled = false; addView(list) }, LinearLayout.LayoutParams(-1, 0, 1f))
         if (more) body.addSpaced(action("‹  All sports") { showHome() }, dp(44), 0)
-        else body.addView(label("↑ ↓ ← →  Browse     •     OK  Select", 11f, MUTED))
         (target ?: (list.getChildAt(0) as? LinearLayout)?.getChildAt(0))?.requestFocus()
     }
 
@@ -208,8 +215,9 @@ class MainActivity : ComponentActivity() {
         var firstRender = true
         fun render() {
             val entries = schedules[sport].orEmpty()
-            val all = (if (sport == Sport.TENNIS) listOf(SportsRepository.tennisChannel) + entries else entries).distinctBy { it.id }
             val now = System.currentTimeMillis()
+            val all = (if (sport == Sport.TENNIS) listOf(SportsRepository.tennisChannel) + entries else entries)
+                .distinctBy { it.id }.filter { Schedule.section(it, sport, now) != ScheduleSection.EARLIER }
             if (!firstRender) rememberSchedule()
             val restoreFocus = if (firstRender) focusedEventId else currentFocus?.tag as? String
             val focusedControl = currentFocus
@@ -239,21 +247,22 @@ class MainActivity : ComponentActivity() {
             section(ScheduleSection.UPCOMING, true)
             section(ScheduleSection.CHANNELS)
             section(ScheduleSection.UNKNOWN)
-            section(ScheduleSection.EARLIER)
             val initial = firstRender
             scroll.post {
                 scroll.scrollTo(0, scheduleScroll[0])
-                val target = focusTarget ?: if (initial) firstCard else null
+                val target = focusTarget ?: if (initial || focusedControl?.isAttachedToWindow == false) firstCard else null
                 target?.requestFocus() ?: if (focusedControl?.isAttachedToWindow == true) focusedControl.requestFocus() else Unit
             }
-            status.text = "${entries.size} events · local start times"
+            status.text = "${all.count { !it.isChannel }} events · local start times"
             scheduleSignature = signature()
             firstRender = false
         }
         renderSchedule = ::render
         if (!refresh && schedules[sport] != null) render()
         else {
-            status.text = "Loading ${sport.label.lowercase()} events…"
+            status.text = "Getting the latest events…"
+            status.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
+            list.addView(ScheduleLoadingView(this), LinearLayout.LayoutParams(-1, -2))
             val requested = sport
             browseJob = lifecycleScope.launch {
                 try {
@@ -278,7 +287,7 @@ class MainActivity : ComponentActivity() {
         tickerJob?.cancel()
         tickerJob = lifecycleScope.launch {
             while (screen == Screen.SCHEDULE) {
-                if (signature() != scheduleSignature) renderSchedule?.invoke()
+                if (browseJob?.isActive != true && signature() != scheduleSignature) renderSchedule?.invoke()
                 countdownLabels.forEach { (view, event) -> view.text = timing(event) }
                 delay(15_000)
             }

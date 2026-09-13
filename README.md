@@ -3,8 +3,8 @@
 A personal native Android TV sports browser. Start with illustrated sport tiles,
 browse current and upcoming events, choose a channel, and watch with Media3.
 
-Home order: **Football, Tennis, Rugby, F1, NFL, NBA, MLB, Golf, + More**.
-More opens MMA, Boxing, NHL, Motorsport, College Football, Basketball,
+Home rows: **Football, Tennis, Rugby, F1, Golf**, then **NFL, NBA, MLB, NHL, + More**.
+More opens MMA, Boxing, Motorsport, College Football, Basketball,
 Volleyball, and Handball. Tennis Channel +1 remains a permanent channel shortcut.
 
 ## Build and deploy
@@ -33,7 +33,8 @@ Both are ignored by Git. Preserve both for future in-place updates.
 - Home: arrow keys browse sport tiles; OK opens the sport's schedule.
 - Schedule: Current and Upcoming are clearly labeled sections in one vertical list
   of full-width event cards. League icons come from the provider. Refresh reloads
-  the feed; a compact breadcrumb Back control returns to the sport home.
+  the feed, with pulsing event placeholders while it loads; a compact breadcrumb
+  Back control returns to the sport home.
 - Event: choose a channel. Named numbered alternatives are grouped together.
   Generic provider links use their channel page names derived from the URL.
 - Player: starts Stream 1 immediately, discovers alternatives in the background.
@@ -50,7 +51,7 @@ every 15 seconds. Events move between sections without refreshing the page.
 The provider does not reliably supply end times or live status. **Current uses
 an estimated window after the scheduled start**, stated on the screen: Football
 and Rugby 3 hours, Tennis 6, NFL and MLB 5, Golf 12, other sports 4. Older events
-remain in Earlier. This is not confirmation that a match or stream is live.
+are hidden from the schedule. This is not confirmation that a match or stream is live.
 
 Absolute provider timestamps take precedence. Dated table schedules combine the
 page's date with its UTC+1 time; US sport cards use America/New_York, including
@@ -61,7 +62,7 @@ lists WNBA games; these are not presented as NBA fixtures.
 ## Artwork and design
 
 Music's navy background, Lato typography, and blue focus borders are retained.
-Nine original sport illustrations were generated with the built-in imagegen tool.
+Ten original sport illustrations were generated with the built-in imagegen tool.
 The app loads bundled assets, with sampled decoding and a bounded bitmap cache.
 
 - Artwork: `app/src/main/res/drawable-nodpi/sport_*.png`
@@ -91,7 +92,7 @@ or P2P transport. Commercials within broadcasts remain.
 - 14 core tests cover parsing, channel grouping, stream ordering, cancellation,
   timezone conversion, year boundaries, schedule transitions, and countdowns.
 - Debug/release builds and Android lint pass (zero errors).
-- Live schedules parse for all eight featured sports; NBA currently returns zero
+- Live schedules parsed for the original eight featured sports; NBA returned zero
   NBA fixtures. The provider has stale WNBA listings on that page.
 - Sony TV at `192.168.1.4`: home artwork, schedule sections and countdowns,
   channel selection, and the two-stream picker visually checked.

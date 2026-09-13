@@ -11,13 +11,14 @@ import java.util.Locale
 enum class Sport(val label: String, val path: String, val windowHours: Long = 4) {
     FOOTBALL("Football", "football-streamz5/", 3), TENNIS("Tennis", "tennis-live-stream10/", 6),
     RUGBY("Rugby", "rugby-live-stream10/", 3), F1("F1", "f1-live-stream99/"),
+    GOLF("Golf", "golf-live-stream98/", 12),
     NFL("NFL", "nfl-live-stream20/", 5), NBA("NBA", "nba-stream70/"),
-    MLB("MLB", "mlb-stream2/", 5), GOLF("Golf", "golf-live-stream98/", 12),
+    MLB("MLB", "mlb-stream2/", 5), NHL("NHL", "nhl-live-stream33/"),
     MMA("MMA", "ufc-live-stream2/"), BOXING("Boxing", "boxing-live-stream10/"),
-    NHL("NHL", "nhl-live-stream33/"), MOTORSPORT("Motorsport", "motorsports-streams5/"),
+    MOTORSPORT("Motorsport", "motorsports-streams5/"),
     NCAAF("College Football", "ncaaf-live-stream01/", 5), BASKETBALL("Basketball", "basketball-live-stream2/"),
     VOLLEYBALL("Volleyball", "volleyball-live-streams/"), HANDBALL("Handball", "handball-live-streaming/");
-    companion object { val featured = entries.take(8); val more = entries.drop(8) }
+    companion object { val featured = entries.take(9); val more = entries.drop(9) }
 }
 data class StreamLink(val label: String, val url: String)
 data class Channel(val name: String, val links: List<StreamLink>) {
