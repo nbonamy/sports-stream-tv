@@ -110,6 +110,6 @@ class SportsRepository(private val http: PageClient = PageClient()) {
         return if (sport == Sport.NBA) parsed.filterNot { it.competition.contains("WNBA", true) } else parsed
     }
     companion object {
-        const val BASE = "https://freestreams-live1h.pk/"
+        const val BASE = ProviderConfig.BASE
     }
 }

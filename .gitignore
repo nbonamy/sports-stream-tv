@@ -4,6 +4,11 @@ node_modules/
 dist/
 out/
 .DS_Store
+.env
+.env.*
+*.p12
+*.p8
+*.mobileprovision
 **/build/
 local.properties
 .idea/
