@@ -1,5 +1,15 @@
 # Artwork
 
+## App icon
+
+Android's `android/app/src/main/res/drawable/ic_sports.xml` is the launcher icon
+source. Electron's `resources/icon.png` and `resources/icon.icns` reuse its paths
+and colors with a rounded Mac mask. To regenerate them on macOS, install `librsvg`
+(`brew install librsvg`) and run `npm run icon` from `electron/`. Normal builds use
+the committed icon files and do not need that tool.
+
+## Sport artwork
+
 Source PNGs live in [originals](originals). Both platforms use the prepared
 `*_cutout.png` files in `assets/sports/drawable-nodpi/`.
 

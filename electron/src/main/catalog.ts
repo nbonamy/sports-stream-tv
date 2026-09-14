@@ -197,15 +197,18 @@ export function parseCountries(html: string, pageUrl: string): Country[] {
   };
   return [...groups.values()].sort((a, b) => priority(a) - priority(b));
 }
-export async function getEvents(id: string, signal?: AbortSignal) {
+export async function getEvents(
+  id: string,
+  signal?: AbortSignal,
+  client = page,
+) {
   const sport = sports.find((s) => s.id === id);
   if (!sport) throw new Error("Unknown sport");
-  const response = await page(PROVIDER_BASE + sport.path, {}, signal);
-  const events = parseCatalog(response.body, response.url).filter(
-    (e) => id !== "nba" || !/WNBA/i.test(e.competition),
-  );
+  const response = await client(PROVIDER_BASE + sport.path, {}, signal);
+  const events = parseCatalog(response.body, response.url);
   if (!events.length) throw new Error("No schedule available");
-  return events;
+  // A valid offseason page can contain only WNBA fixtures.
+  return events.filter((e) => id !== "nba" || !/WNBA/i.test(e.competition));
 }
 export async function getCountries(signal?: AbortSignal) {
   const response = await page(PROVIDER_BASE + "live-tv/", {}, signal);

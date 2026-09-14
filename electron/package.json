@@ -5,6 +5,7 @@
   "main": "dist/main/index.cjs",
   "scripts": {
     "dev": "node scripts/dev.mjs",
+    "icon": "node scripts/app-icon.mjs",
     "build": "node scripts/build.mjs",
     "start": "npm run build && electron .",
     "typecheck": "vue-tsc --noEmit",
@@ -49,6 +50,7 @@
       "package.json"
     ],
     "mac": {
+      "icon": "resources/icon.icns",
       "category": "public.app-category.sports",
       "target": [
         "dir"

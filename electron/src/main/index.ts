@@ -100,6 +100,8 @@ function clear() {
 }
 
 app.whenReady().then(() => {
+  if (!app.isPackaged && process.platform === "darwin")
+    app.dock?.setIcon(join(__dirname, "../../resources/icon.png"));
   const renderer = join(__dirname, "../renderer");
   protocol.handle("sports", async (req) => {
     const url = new URL(req.url);

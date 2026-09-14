@@ -8,7 +8,7 @@ import {
   discover,
 } from "../src/main/resolver";
 import { destination, publicAddress } from "../src/main/http";
-import { parseCatalog, parseCountries } from "../src/main/catalog";
+import { getEvents, parseCatalog, parseCountries } from "../src/main/catalog";
 import { sports, channelsFor, countdown, section } from "../src/shared/model";
 import { PROVIDER_BASE, USER_AGENT } from "../src/main/provider";
 
@@ -256,6 +256,25 @@ test("LiveTV prioritizes FR US UK and ignores off-site channels", () => {
   );
   assert.equal(result[0].channels.length, 1);
   assert.equal(result[2].name, "United Kingdom");
+});
+
+test("NBA with only WNBA listings is an empty schedule, not a load failure", async () => {
+  const body = `<h2>WNBA STREAMS</h2><h3>AUGUST 30, 2026</h3>
+    <section class="elementor-top-section"><h3 class="teamz">Home @ Away</h3>
+      <p>3:00 PM ET</p><a href="/basketball-game/">Watch</a></section>`;
+  const client = async (url: string) => ({ url, body });
+  assert.deepEqual(await getEvents("nba", undefined, client), []);
+  assert.equal((await getEvents("basketball", undefined, client)).length, 1);
+});
+
+test("unrecognized schedule pages still report a loading failure", async () => {
+  await assert.rejects(
+    getEvents("nba", undefined, async (url) => ({
+      url,
+      body: "<h1>Unavailable</h1>",
+    })),
+    /No schedule available/,
+  );
 });
 
 test("Giants stream 1 resolves its literal array source without selecting alternatives", async () => {
