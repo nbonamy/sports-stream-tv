@@ -25,6 +25,8 @@ Kotlin constant from this file; the shared TypeScript core imports it at build t
 
 ## Task guides
 
+- **Before declaring implementation work complete:** read and satisfy the repository
+  [Definition of Done](.agents/skills/definition-of-done/SKILL.md).
 - **Android code, builds, or deployment:** read [android/AGENTS.md](android/AGENTS.md).
 - **Shared Vue or TypeScript:** read [packages/AGENTS.md](packages/AGENTS.md).
 - **Mobile implementation or builds:** read [mobile/AGENTS.md](mobile/AGENTS.md).

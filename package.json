@@ -8,6 +8,9 @@
   ],
   "scripts": {
     "check": "npm run check --workspace=sports-desktop && npm run check --workspace=@sports/mobile",
+    "test": "vitest run",
+    "test:ai": "vitest run --silent --reporter=./tests/reporter/silent.ts",
+    "test:watch": "vitest",
     "dev": "npm run dev --workspace=sports-desktop",
     "dev:mobile": "npm run dev --workspace=@sports/mobile"
   },
@@ -16,8 +19,8 @@
   },
   "devDependencies": {
     "typescript": "~5.9.3",
-    "tsx": "^4.23.13",
     "@types/node": "^26.5.1",
+    "vitest": "^5.0.0",
     "vue-tsc": "^3.3.11"
   }
 }

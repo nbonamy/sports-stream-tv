@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { createSportsService } from "../src/service";
 import { PROVIDER_BASE } from "../src/provider";

@@ -9,7 +9,8 @@
     "sync": "npm run build && cap sync",
     "ios": "npm run sync && cap open ios",
     "android": "npm run sync && cap open android",
-    "check": "vue-tsc --noEmit && tsx --test tests/*.test.ts && npm run build"
+    "test": "vitest run",
+    "check": "vue-tsc --noEmit && npm test && npm run build"
   },
   "dependencies": {
     "@sports/core": "0.1.0",

@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
 import { createTransport, type NativeTransport } from "../src/transport";
 const url = "https://cdn.example.test/live.ts";

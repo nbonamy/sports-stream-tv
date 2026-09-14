@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "direct HLS property",
+      "html": "new Player({source: \"https://media.test/live/channel.m3u8?expires=2000000000\"});",
+      "expectedUrl": "https://media.test/live/channel.m3u8?expires=2000000000"
+    },
+    {
+      "name": "literal source variable",
+      "html": "const playbackURL = \"https://media.test/live/channel.m3u8?expires=2000000000\"; new Player({source: playbackURL});",
+      "expectedUrl": "https://media.test/live/channel.m3u8?expires=2000000000"
+    },
+    {
+      "name": "indexed literal array uses exact selection",
+      "html": "const streamUrls = [\"https://media.test/wrong.m3u8\", \"https://media.test/live/channel.m3u8?expires=2000000000\"]; player.setup({file: streamUrls[1],});",
+      "expectedUrl": "https://media.test/live/channel.m3u8?expires=2000000000"
+    },
+    {
+      "name": "joined string arrays",
+      "html": "return ([\"https://media.test/live/\", \"channel.m3u8\"].join(\"\") + tail.join(\"\")); var tail=[\"?expires=2000000000\"];",
+      "expectedUrl": "https://media.test/live/channel.m3u8?expires=2000000000"
+    },
+    {
+      "name": "econfig envelope prefers non-P2P stream",
+      "html": "window._econfig = \"U1RaeEpiV2d3WkVoQ2VrOXBPSFppVjFacllWZEZkV1JIVm5wa1F6bHpZVmhhYkV3eVRtOVpWelU9WlhseEtlbVJJU214WlZ6Rm1aRmhLYzBscWIybGhTRkl3WTBoTk5reDVPWFJhVjFKd1dWTTFNRm89ZFZweFhkM1ZpVkU0eFQwUTViR1ZJUW5CamJWWjZVRlJKZDAxRVFYZE5SRUYzVFVSQmFXWlJQVDA9V0U0eHdURE5CZVdORE5YUk5NMVUwU1dsM2FXTXpVbmxhVjBaMFdETldlV0pHT1hWaU0wRjVZME09\";",
+      "expectedUrl": "https://media.test/live/channel.m3u8?expires=2000000000"
+    },
+    {
+      "name": "indexed character encoding",
+      "html": "var rotatingData=[[54,\"eDY5eA==\"],[53,\"eDY5eA==\"],[52,\"eDY5eA==\"],[51,\"eDY5eA==\"],[50,\"eDY5eA==\"],[49,\"eDY5eA==\"],[48,\"eDY5eA==\"],[47,\"eDY5eA==\"],[46,\"eDY5eA==\"],[45,\"eDcxeA==\"],[44,\"eDgyeA==\"],[43,\"eDEzNng=\"],[42,\"eDEyMng=\"],[41,\"eDEzNXg=\"],[40,\"eDEyNng=\"],[39,\"eDEzM3g=\"],[38,\"eDE0MXg=\"],[37,\"eDEyMng=\"],[36,\"eDg0eA==\"],[35,\"eDc3eA==\"],[34,\"eDEzOHg=\"],[33,\"eDcyeA==\"],[32,\"eDEzMHg=\"],[31,\"eDY3eA==\"],[30,\"eDEyOXg=\"],[29,\"eDEyMng=\"],[28,\"eDEzMXg=\"],[27,\"eDEzMXg=\"],[26,\"eDExOHg=\"],[25,\"eDEyNXg=\"],[24,\"eDEyMHg=\"],[23,\"eDY4eA==\"],[22,\"eDEyMng=\"],[21,\"eDEzOXg=\"],[20,\"eDEyNng=\"],[19,\"eDEyOXg=\"],[18,\"eDY4eA==\"],[17,\"eDEzN3g=\"],[16,\"eDEzNng=\"],[15,\"eDEyMng=\"],[14,\"eDEzN3g=\"],[13,\"eDY3eA==\"],[12,\"eDExOHg=\"],[11,\"eDEyNng=\"],[10,\"eDEyMXg=\"],[9,\"eDEyMng=\"],[8,\"eDEzMHg=\"],[7,\"eDY4eA==\"],[6,\"eDY4eA==\"],[5,\"eDc5eA==\"],[4,\"eDEzNng=\"],[3,\"eDEzM3g=\"],[2,\"eDEzN3g=\"],[1,\"eDEzN3g=\"],[0,\"eDEyNXg=\"]]; function alpha(){return 9;} function beta(){return 12;} var k=alpha()+beta();\nrotatingData.sort((a,b) => a[0]-b[0]); rotatingData.forEach(e => {let v=e[1];playbackURL += String.fromCharCode(parseInt(atob(v).replace(/\\D/g, '')) - k)}); new Clappr.Player({source: playbackURL,});",
+      "expectedUrl": "https://media.test/live/channel.m3u8?expires=2000000000"
+    },
+    {
+      "name": "executable source expression is rejected",
+      "html": "const playbackURL = \"https://media.test/live/channel.m3u8?expires=2000000000\" + getToken(); new Player({source: playbackURL});",
+      "expectedUrl": null
+    },
+    {
+      "name": "indexed array never falls back",
+      "html": "const streamUrls = [\"https://media.test/live/channel.m3u8?expires=2000000000\"]; player.setup({file: streamUrls[1],});",
+      "expectedUrl": null
+    },
+    {
+      "name": "insecure HLS URL is rejected",
+      "html": "new Player({source: \"http://media.test/live/channel.m3u8\"});",
+      "expectedUrl": null
+    }
+  ]
+}

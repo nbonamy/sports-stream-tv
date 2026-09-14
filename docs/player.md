@@ -54,12 +54,13 @@ exception classes; redact signed URLs, query tokens, cookies, and credentials.
 
 ## Add or repair support
 
-1. **Create failing fixtures in both cores.** Intercept `PageClient` requests as in
-   [SourceTests.kt](../android/core/src/test/kotlin/fr/bonamy/sports/core/SourceTests.kt).
-   Supply sanitized wrapper HTML, configuration data, and a manifest. Assert the
-   selected stream's request sequence and headers. Mirror it in
-   `packages/core/tests/provider.test.ts` so Android TV, Electron, and mobile enforce
-   the same selection. Confirm both fixtures fail on the current code.
+1. **Create a failing cross-platform regression.** Add playlist extraction shapes to
+   [`contracts/streams/playlist-cases.json`](../contracts/streams/playlist-cases.json);
+   both cores execute those exact inputs and expectations. For traversal, selection,
+   and request behavior, intercept `PageClient` as in
+   [SourceTests.kt](../android/core/src/test/kotlin/fr/bonamy/sports/core/SourceTests.kt)
+   and mirror the same sanitized page chain in `packages/core/tests/provider.test.ts`.
+   Assert request order and headers, and confirm both cores fail before the fix.
 2. **Change the narrowest component.** Reuse a decoder when the format is already
    supported. Adjust iframe discovery for a missing HTML shape. For a dynamically
    constructed iframe, derive its URL only after inspecting its construction.
@@ -71,7 +72,8 @@ exception classes; redact signed URLs, query tokens, cookies, and credentials.
    stream 1 was not selected instead. Keep fullscreen and visibility metadata faithful
    to the source HTML. Follow [PlayerDiscoveryTests.kt](../android/core/src/test/kotlin/fr/bonamy/sports/core/PlayerDiscoveryTests.kt)
    for renamed domains, iframe ranking, destination checks, and traversal bounds.
-4. **Run the affected platform's checks.** Use `make check` from `android/` for core
+4. **Run the parity and affected-platform checks.** `make stream-check` runs the shared
+   stream contract through both cores. Use `make check` from `android/` for core
    and Android tests, lint, and the debug build; use `npm run check` from `electron/`
    for TypeScript checks, tests, and the production build.
    Check parser behavior on Android when regex or decoding changes: desktop Java

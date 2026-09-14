@@ -18,6 +18,7 @@ val generateProviderConfig by tasks.registering {
     }
 }
 kotlin.sourceSets["main"].kotlin.srcDir(generatedProvider)
+sourceSets["test"].resources.srcDir(rootProject.file("../contracts"))
 tasks.named("compileKotlin") { dependsOn(generateProviderConfig) }
 dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

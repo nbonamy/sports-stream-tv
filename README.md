@@ -39,6 +39,7 @@ on scheduled start times and estimated event durations, rather than a live-statu
 - `mobile/` — Capacitor iPhone and Android phone apps with native networking.
 - `packages/core/` — TypeScript provider parsing, stream resolution, and sessions.
 - `packages/ui/` — Vue screens and player shared by desktop and mobile.
+- `contracts/streams/` — sanitized player fixtures executed by both resolver engines.
 - `assets/sports/` — sport icons shared by all platform builds.
 - `config/provider.json` — the shared provider base URL; rebuild affected apps after changing it.
 - `docs/` — shared channel-support and artwork guidance.
@@ -47,12 +48,15 @@ on scheduled start times and estimated event durations, rather than a live-statu
 The root Makefile forwards Android commands, so `make check`, `make build`,
 and `make install ANDROID_TV_DEVICE=…` still work from here. Android build output,
 local SDK configuration, and signing files live under `android/`.
+`make stream-check` runs the shared stream contract through TypeScript and Kotlin.
 
 ## Development
 
 For the JavaScript workspaces, run `npm ci` at the root. `npm run check` checks
 the shared packages and both app bundles; `npm run dev` starts Electron. Native
 mobile builds are covered in its README.
+`npm test` runs the Vitest suite, while `npm run test:ai` emits compact output for
+agent-driven test loops.
 
 Read [AGENTS.md](AGENTS.md) and the target platform's AGENTS.md before making changes.
 For non-working channels, use [Channel support](docs/player.md). For new icons, use

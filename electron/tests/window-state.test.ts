@@ -2,20 +2,28 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { test, type TestContext } from "node:test";
+import { afterEach, test } from "vitest";
 import { restoreWindowState, saveWindowState } from "../src/main/window-state";
 
 const primary = { x: 0, y: 25, width: 1440, height: 875 };
 const secondary = { x: -1920, y: 0, width: 1920, height: 1080 };
 
-function preferences(t: TestContext) {
+const temporaryDirectories = new Set<string>();
+
+afterEach(() => {
+  for (const directory of temporaryDirectories)
+    rmSync(directory, { recursive: true, force: true });
+  temporaryDirectories.clear();
+});
+
+function preferences() {
   const directory = mkdtempSync(join(tmpdir(), "sports-window-"));
-  t.after(() => rmSync(directory, { recursive: true, force: true }));
+  temporaryDirectories.add(directory);
   return join(directory, "profile", "window-state.json");
 }
 
-test("closing and reopening preserves size and position on a secondary monitor", (t) => {
-  const path = preferences(t);
+test("closing and reopening preserves size and position on a secondary monitor", () => {
+  const path = preferences();
   const bounds = { x: -1700, y: 120, width: 1100, height: 750 };
   saveWindowState(path, bounds);
   assert.deepEqual(
@@ -30,8 +38,8 @@ test("closing and reopening preserves size and position on a secondary monitor",
   );
 });
 
-test("a disconnected monitor restores the window centered on the primary display", (t) => {
-  const path = preferences(t);
+test("a disconnected monitor restores the window centered on the primary display", () => {
+  const path = preferences();
   saveWindowState(path, { x: -1700, y: 120, width: 1100, height: 750 });
   assert.deepEqual(restoreWindowState(path, [primary], primary).bounds, {
     x: 170,
@@ -41,8 +49,8 @@ test("a disconnected monitor restores the window centered on the primary display
   });
 });
 
-test("changed display dimensions keep the restored window inside the work area", (t) => {
-  const path = preferences(t);
+test("changed display dimensions keep the restored window inside the work area", () => {
+  const path = preferences();
   saveWindowState(path, { x: 900, y: 500, width: 1800, height: 1000 });
   assert.deepEqual(
     restoreWindowState(path, [primary], primary).bounds,
@@ -50,8 +58,8 @@ test("changed display dimensions keep the restored window inside the work area",
   );
 });
 
-test("missing, corrupt and invalid preferences fall back to a usable default", (t) => {
-  const path = preferences(t);
+test("missing, corrupt and invalid preferences fall back to a usable default", () => {
+  const path = preferences();
   const fallback = { x: 80, y: 53, width: 1280, height: 820 };
   assert.deepEqual(
     restoreWindowState(path, [primary], primary).bounds,
@@ -73,8 +81,8 @@ test("missing, corrupt and invalid preferences fall back to a usable default", (
   }
 });
 
-test("maximized state survives reopening without replacing the normal bounds", (t) => {
-  const path = preferences(t);
+test("maximized state survives reopening without replacing the normal bounds", () => {
+  const path = preferences();
   const bounds = { x: 180, y: 100, width: 1000, height: 700 };
   saveWindowState(path, bounds, true);
   assert.deepEqual(restoreWindowState(path, [primary], primary), {
@@ -88,8 +96,8 @@ test("maximized state survives reopening without replacing the normal bounds", (
   });
 });
 
-test("legacy preferences and invalid maximized flags restore a normal window", (t) => {
-  const path = preferences(t);
+test("legacy preferences and invalid maximized flags restore a normal window", () => {
+  const path = preferences();
   const bounds = { x: 180, y: 100, width: 1000, height: 700 };
   saveWindowState(path, bounds);
   for (const value of [

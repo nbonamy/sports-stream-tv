@@ -1,18 +1,34 @@
-import { test } from "node:test";
+import { test } from "vitest";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { barecrop, indexed, playlist } from "../src/decoders";
-import {
-  nextPages,
-  streamOptions,
-  resolve,
-  discover,
-} from "../src/resolver";
+import { nextPages, streamOptions, resolve, discover } from "../src/resolver";
 import { destination, publicAddress } from "../src/destination";
 import { getEvents, parseCatalog, parseCountries } from "../src/catalog";
 import { sports, channelsFor, countdown, section } from "../src/model";
 import { PROVIDER_BASE, USER_AGENT } from "../src/provider";
 
+type PlaylistContract = {
+  version: number;
+  cases: { name: string; html: string; expectedUrl: string | null }[];
+};
+
+const playlistContract = JSON.parse(
+  readFileSync(
+    new URL("../../../contracts/streams/playlist-cases.json", import.meta.url),
+    "utf8",
+  ),
+) as PlaylistContract;
+
 const media = "https://cdn.example.test/live/channel.m3u8?expires=2000000000";
+
+test("shared playlist extraction contract", () => {
+  assert.equal(playlistContract.version, 1);
+  assert.ok(playlistContract.cases.length > 0);
+  for (const fixture of playlistContract.cases)
+    assert.equal(playlist(fixture.html), fixture.expectedUrl, fixture.name);
+});
+
 function envelope(value: unknown) {
   let json = JSON.stringify(value);
   while (Buffer.from(json).toString("base64").length % 4) json += " ";
@@ -472,29 +488,44 @@ test("malformed provider table sections do not combine separate matches", () => 
     <tr><td class="matchtime">11:00</td><td class="event-title">Second match</td><td><a href="/second/">Watch</a></td></tr>
     </tbody></tr></table>`;
   const events = parseCatalog(html, PROVIDER_BASE, Date.UTC(2026, 8, 14));
-  assert.deepEqual(events.map((e) => e.title), ["First match", "Second match"]);
+  assert.deepEqual(
+    events.map((e) => e.title),
+    ["First match", "Second match"],
+  );
   assert.ok(events.every((e) => e.startsAt === Date.UTC(2026, 8, 14, 10)));
   assert.ok(events.every((e) => e.links.length === 1));
 });
 
 test("scheduled fixtures do not leak out of the continuous-channel section", () => {
-  const row = (title: string, time = "") => `<tr><td class="matchtime">${time}</td><td class="event-title">${title}</td><td><a href="/${title}/">Watch</a></td></tr>`;
+  const row = (title: string, time = "") =>
+    `<tr><td class="matchtime">${time}</td><td class="event-title">${title}</td><td><a href="/${title}/">Watch</a></td></tr>`;
   const html = `<h2>SEPTEMBER 14, 2026</h2><h2>WTA</h2><table>${row("WTA-match", "19:00")}</table>
     <h2>24/7 CHANNELS</h2><table>${row("TENNIS-CHANNEL")}</table>
     <section class="spacer"></section><div><table>${row("leftover-match", "11:00")}</table></div>
     <h2>SEPTEMBER 15, 2026</h2><h2>ATP</h2><table>${row("next-day-match", "12:00")}</table>`;
   const events = parseCatalog(html, PROVIDER_BASE);
-  assert.deepEqual(events.map(e => e.title), ["WTA-match", "TENNIS-CHANNEL", "next-day-match"]);
+  assert.deepEqual(
+    events.map((e) => e.title),
+    ["WTA-match", "TENNIS-CHANNEL", "next-day-match"],
+  );
   assert.equal(events[1].isChannel, true);
 });
 
 test("ordered evening fixtures roll past midnight within each competition table", () => {
-  const row = (title: string, time: string, timestamp = "") => `<tr ${timestamp ? `data-timestamp="${timestamp}"` : ""}><td class="matchtime">${time}</td><td class="event-title">${title}</td><td><a href="/${title}/">Watch</a></td></tr>`;
+  const row = (title: string, time: string, timestamp = "") =>
+    `<tr ${timestamp ? `data-timestamp="${timestamp}"` : ""}><td class="matchtime">${time}</td><td class="event-title">${title}</td><td><a href="/${title}/">Watch</a></td></tr>`;
   const html = `<h2>SEPTEMBER 14, 2026</h2><h2>WTA A</h2><table>
     ${row("evening", "22:00")}${row("midnight", "00:00")}${row("late", "01:30")}</table>
     <h2>WTA B</h2><table>${row("afternoon", "17:00")}${row("earlier", "16:00")}${row("explicit", "00:00", String(Date.UTC(2026, 8, 14, 20)))}</table>`;
-  assert.deepEqual(parseCatalog(html, PROVIDER_BASE).map(e => e.startsAt), [
-    Date.UTC(2026, 8, 14, 21), Date.UTC(2026, 8, 14, 23), Date.UTC(2026, 8, 15, 0, 30),
-    Date.UTC(2026, 8, 14, 16), Date.UTC(2026, 8, 14, 15), Date.UTC(2026, 8, 14, 20),
-  ]);
+  assert.deepEqual(
+    parseCatalog(html, PROVIDER_BASE).map((e) => e.startsAt),
+    [
+      Date.UTC(2026, 8, 14, 21),
+      Date.UTC(2026, 8, 14, 23),
+      Date.UTC(2026, 8, 15, 0, 30),
+      Date.UTC(2026, 8, 14, 16),
+      Date.UTC(2026, 8, 14, 15),
+      Date.UTC(2026, 8, 14, 20),
+    ],
+  );
 });

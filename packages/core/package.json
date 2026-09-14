@@ -7,7 +7,7 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "test": "tsx --test tests/*.test.ts",
+    "test": "vitest run",
     "check": "tsc --noEmit && npm test"
   },
   "dependencies": {

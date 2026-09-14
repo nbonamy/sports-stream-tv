@@ -9,7 +9,7 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "test": "tsx --test tests/*.test.ts",
+    "test": "vitest run",
     "check": "vue-tsc --noEmit && npm test"
   },
   "dependencies": {
