@@ -153,7 +153,13 @@ class MainActivity : ComponentActivity() {
         }, LinearLayout.LayoutParams(dp(32), dp(36)).apply { marginEnd = dp(12) })
         header.addView(label("SPORTS", 17f).apply { bold(); letterSpacing = .16f })
         header.addView(label(crumb, 12f, MUTED).apply { setPadding(dp(22), 0, 0, 0) }, LinearLayout.LayoutParams(0, -2, 1f))
-        header.addView(label(SimpleDateFormat("EEE, MMM d  ·  h:mm a", Locale.getDefault()).format(Date()), 12f, MUTED))
+        header.addView(TextClock(this).apply {
+            format12Hour = "EEE, MMM d  ·  h:mm a"
+            format24Hour = format12Hour
+            typeface = resources.getFont(R.font.theme)
+            textSize = 12f; setTextColor(MUTED); includeFontPadding = false
+            isFocusable = false
+        })
         root.addView(header, LinearLayout.LayoutParams(-1, dp(56)))
         val body = column().apply { setPadding(dp(36), dp(8), dp(36), dp(24)) }
         root.addView(body, LinearLayout.LayoutParams(-1, 0, 1f))
