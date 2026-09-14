@@ -17,6 +17,7 @@ and watch in a fullscreen player. Or open **LiveTV** to browse channels by count
 - **LiveTV** — a country-based channel directory, with France, the United States,
   and the United Kingdom first.
 - **Stream switching** — move between a channel's available streams from the player.
+- **Back to live** — select LIVE to catch up after pausing or falling behind.
 - **Made for a remote** — large tiles, visible focus, and Back navigation that
   returns you to your previous selection.
 - **Native playback** — fullscreen video without the provider's web page or pop-ups.
@@ -29,10 +30,14 @@ on scheduled start times and estimated event durations, rather than a live-statu
 
 | Button | Browse | Player |
 | --- | --- | --- |
-| Arrow keys | Move between tiles | Left/Right changes stream; Up shows controls; Down selects play/pause or Retry |
+| Arrow keys | Move between tiles | Left/Right changes stream; Down enters playback controls or selects Retry; Up returns to stream navigation |
 | OK | Open the selected item | Activate the selected control, or toggle playback when controls are hidden |
 | Back | Return to the previous screen | Return to the channel list |
 | Play/Pause | — | Toggle playback |
+
+Within playback controls, Left/Right moves between play/pause and **LIVE**.
+A red dot means you're live. When LIVE is muted, select it to return to live and
+resume playback. It appears on streams that support returning to live.
 
 ## Install
 

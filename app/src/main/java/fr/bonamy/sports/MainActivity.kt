@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
+import androidx.media3.common.C
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -49,8 +50,12 @@ class MainActivity : ComponentActivity() {
     private var renewalJob: Job? = null
     private var recoveryJob: Job? = null
     private var stableJob: Job? = null
+    private var liveStatusJob: Job? = null
     private var player: ExoPlayer? = null
     private var playerView: PlayerView? = null
+    private var retainedFrame: RetainedVideoFrame? = null
+    private var hasVideoFrame = false
+    private var awaitingVideoFrame = true
     private var playerChrome: PlayerChrome? = null
     private var retries = 0
     private var focusedEventId: String? = null
@@ -112,12 +117,17 @@ class MainActivity : ComponentActivity() {
         Sport.TENNIS -> R.drawable.sport_tennis_cutout
         Sport.RUGBY -> R.drawable.sport_rugby_cutout
         Sport.F1 -> R.drawable.sport_f1_cutout
-        Sport.NFL -> R.drawable.sport_nfl_cutout
-        Sport.NBA -> R.drawable.sport_nba_cutout
+        Sport.NFL, Sport.NCAAF -> R.drawable.sport_nfl_cutout
+        Sport.NBA, Sport.BASKETBALL -> R.drawable.sport_nba_cutout
         Sport.MLB -> R.drawable.sport_mlb_cutout
         Sport.NHL -> R.drawable.sport_nhl_cutout
         Sport.GOLF -> R.drawable.sport_golf_cutout
-        else -> R.drawable.sport_more_cutout
+        Sport.MMA -> R.drawable.sport_mma_cutout
+        Sport.BOXING -> R.drawable.sport_boxing_cutout
+        Sport.MOTORSPORT -> R.drawable.sport_motorsport_cutout
+        Sport.VOLLEYBALL -> R.drawable.sport_volleyball_cutout
+        Sport.HANDBALL -> R.drawable.sport_handball_cutout
+        null -> R.drawable.sport_more_cutout
     }
 
     private fun artwork(item: Sport?, liveTv: Boolean = false) = ImageView(this).apply {
@@ -452,18 +462,21 @@ class MainActivity : ComponentActivity() {
         val video = PlayerView(this).apply {
             useController = false; isFocusable = false
             setShowBuffering(PlayerView.SHOW_BUFFERING_NEVER)
+            setKeepContentOnPlayerReset(true)
         }
         playerView = video
         frame.addView(video, FrameLayout.LayoutParams(-1, -1))
+        retainedFrame = RetainedVideoFrame(this).also { frame.addView(it, FrameLayout.LayoutParams(-1, -1)) }
         val chrome = PlayerChrome(this, selectedEvent?.title ?: selectedChannel?.name ?: "LiveTV",
             if (liveTvPlayback) "LiveTV · ${tvCountryCode.orEmpty()}" else selectedChannel?.name.orEmpty(),
             onBack = { leavePlayer() },
             onPrevious = { changeStream(-1) }, onNext = { changeStream(1) },
             onRetry = {
                 if (streamOptions.isEmpty()) selectedChannel?.let { openChannel(it) }
-                else { retries = 0; resolveAndPlay() }
+                else { retries = 0; resolveAndPlay(retainVideo = true) }
             },
-            onTogglePlay = { player?.let { if (it.playWhenReady) it.pause() else it.play() } })
+            onTogglePlay = { player?.let { if (it.playWhenReady) it.pause() else it.play() } },
+            onGoLive = { player?.let { LivePlayback.goLive(it) } })
         playerChrome = chrome
         frame.addView(chrome, FrameLayout.LayoutParams(-1, -1))
         setContentView(frame)
@@ -493,12 +506,33 @@ class MainActivity : ComponentActivity() {
         return playerChrome?.handleKey(event) == true
     }
 
-    private fun resolveAndPlay() {
+    private fun showPlayerState(activePlayer: Player) {
+        when (activePlayer.playbackState) {
+            Player.STATE_BUFFERING -> showReconnecting()
+            Player.STATE_READY -> {
+                if (awaitingVideoFrame && activePlayer.currentTracks.isTypeSelected(C.TRACK_TYPE_VIDEO)) showReconnecting()
+                else {
+                    retainedFrame?.clear()
+                    playerChrome?.showPlayback(activePlayer.isPlaying)
+                }
+            }
+            Player.STATE_ENDED -> playerChrome?.showUnavailable(overVideo = hasVideoFrame)
+        }
+    }
+
+    private fun showReconnecting() {
+        if (hasVideoFrame) playerView?.let { retainedFrame?.capture(it) }
+        playerChrome?.showConnecting(overVideo = hasVideoFrame)
+    }
+
+    private fun resolveAndPlay(retainVideo: Boolean = false) {
         val link = streamOptions.getOrNull(streamIndex) ?: return
         resolveJob?.cancel(); renewalJob?.cancel(); recoveryJob?.cancel(); stableJob?.cancel()
-        player?.stop()
+        awaitingVideoFrame = true
+        if (!retainVideo) { hasVideoFrame = false; retainedFrame?.clear() }
+        showReconnecting()
+        if (retainVideo) player?.pause() else player?.stop()
         updateStreamControls()
-        playerChrome?.showConnecting()
         resolveJob = lifecycleScope.launch {
             try {
                 val stream = withContext(Dispatchers.IO) { resolver.resolve(link) }
@@ -511,18 +545,20 @@ class MainActivity : ComponentActivity() {
                 val activePlayer = player ?: ExoPlayer.Builder(this@MainActivity).build().also {
                     player = it; playerView?.player = it
                     it.addListener(object : Player.Listener {
+                        override fun onEvents(player: Player, events: Player.Events) {
+                            playerChrome?.setLiveState(LivePlayback.state(player))
+                        }
                         override fun onRenderedFirstFrame() {
-                            playerChrome?.showPlayback(it.isPlaying)
+                            if (it.playbackState == Player.STATE_IDLE) return
+                            hasVideoFrame = true
+                            awaitingVideoFrame = false
+                            showPlayerState(it)
                         }
                         override fun onPlaybackStateChanged(playbackState: Int) {
-                            when (playbackState) {
-                                Player.STATE_BUFFERING -> playerChrome?.showConnecting()
-                                Player.STATE_READY -> playerChrome?.showPlayback(it.isPlaying)
-                                Player.STATE_ENDED -> playerChrome?.showUnavailable()
-                            }
+                            showPlayerState(it)
                         }
                         override fun onIsPlayingChanged(isPlaying: Boolean) {
-                            if (it.playbackState == Player.STATE_READY) playerChrome?.showPlayback(isPlaying)
+                            if (it.playbackState == Player.STATE_READY) showPlayerState(it)
                             stableJob?.cancel()
                             if (isPlaying) stableJob = lifecycleScope.launch { delay(30_000); retries = 0 }
                         }
@@ -530,16 +566,23 @@ class MainActivity : ComponentActivity() {
                             android.util.Log.w("SportsPlayer", error.errorCodeName); recover()
                         }
                     })
+                    liveStatusJob?.cancel()
+                    liveStatusJob = lifecycleScope.launch {
+                        while (isActive) {
+                            playerChrome?.setLiveState(LivePlayback.state(it))
+                            delay(1_000)
+                        }
+                    }
                 }
                 activePlayer.setMediaSource(media); activePlayer.prepare(); activePlayer.playWhenReady = true
                 stream.expiresAtMillis?.let { expires ->
                     renewalJob = lifecycleScope.launch {
                         delay((expires - System.currentTimeMillis() - 60_000).coerceIn(15_000, 21_600_000))
-                        resolveAndPlay()
+                        resolveAndPlay(retainVideo = true)
                     }
                 }
             } catch (e: CancellationException) { throw e }
-            catch (_: SourceUnavailable) { playerChrome?.showUnavailable() }
+            catch (_: SourceUnavailable) { playerChrome?.showUnavailable(overVideo = hasVideoFrame) }
             catch (_: Exception) { recover() }
         }
     }
@@ -548,14 +591,17 @@ class MainActivity : ComponentActivity() {
         if (screen != Screen.PLAYER || recoveryJob?.isActive == true) return
         renewalJob?.cancel(); retries++
         if (retries > 3) {
-            playerChrome?.showUnavailable()
+            playerChrome?.showUnavailable(overVideo = hasVideoFrame)
             return
         }
-        playerChrome?.showConnecting()
-        recoveryJob = lifecycleScope.launch { delay(retries * 3000L); resolveAndPlay() }
+        showReconnecting()
+        recoveryJob = lifecycleScope.launch { delay(retries * 3000L); resolveAndPlay(retainVideo = true) }
     }
 
     private fun stopPlayback() {
+        hasVideoFrame = false; awaitingVideoFrame = true
+        retainedFrame?.clear()
+        liveStatusJob?.cancel(); liveStatusJob = null
         discoveryJob?.cancel(); resolveJob?.cancel(); renewalJob?.cancel(); recoveryJob?.cancel(); stableJob?.cancel()
         playerView?.player = null; player?.release(); player = null
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

@@ -25,7 +25,8 @@ class PlayerPreviewActivity : Activity() {
         chrome = PlayerChrome(this, "DP World Tour: Irish Open – Final Round", "Sky Sports+",
             onBack = { finish() }, onPrevious = { move(-1) }, onNext = { move(1) },
             onRetry = { chrome.showConnecting() },
-            onTogglePlay = { playing = !playing; chrome.showPlayback(playing) })
+            onTogglePlay = { playing = !playing; chrome.showPlayback(playing) },
+            onGoLive = { playing = true; chrome.showPlayback(true); chrome.setLiveState(LiveState.LIVE) })
         val root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             addView(chrome, FrameLayout.LayoutParams(-1, -1))
@@ -36,6 +37,9 @@ class PlayerPreviewActivity : Activity() {
         when (intent.getStringExtra("state")) {
             "playing" -> { playing = true; chrome.showPlayback(true) }
             "paused" -> chrome.showPlayback(false)
+            "live" -> { playing = true; chrome.showPlayback(true); chrome.setLiveState(LiveState.LIVE) }
+            "behind" -> { chrome.showPlayback(false); chrome.setLiveState(LiveState.BEHIND) }
+            "reconnecting" -> { root.setBackgroundColor(0xFF365A48.toInt()); chrome.showConnecting(overVideo = true) }
             "unavailable" -> chrome.showUnavailable()
         }
     }

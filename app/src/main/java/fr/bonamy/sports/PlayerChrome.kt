@@ -23,6 +23,7 @@ internal class PlayerChrome(
     private val onNext: () -> Unit,
     private val onRetry: () -> Unit,
     private val onTogglePlay: () -> Unit,
+    private val onGoLive: () -> Unit,
 ) : FrameLayout(context) {
     private enum class Mode { CONNECTING, PLAYING, PAUSED, UNAVAILABLE }
     private var mode = Mode.CONNECTING
@@ -38,6 +39,17 @@ internal class PlayerChrome(
     private val previous = control(PlayerControlButton.Icon.PREVIOUS, "Previous stream", onPrevious)
     private val next = control(PlayerControlButton.Icon.NEXT, "Next stream", onNext)
     private val transport = control(PlayerControlButton.Icon.PAUSE, "Pause", onTogglePlay)
+    private var liveState = LiveState.HIDDEN
+    private val live = context.label("● LIVE", 13f).apply {
+        bold(); gravity = Gravity.CENTER
+        background = StateListDrawable().apply {
+            addState(intArrayOf(android.R.attr.state_focused), context.shape(0xFF172431.toInt()))
+            addState(intArrayOf(android.R.attr.state_pressed), context.shape(0xFF172431.toInt()))
+            addState(intArrayOf(), context.shape(Color.TRANSPARENT))
+        }
+        setOnClickListener { if (liveState == LiveState.BEHIND) { reveal(); onGoLive() } }
+        setOnFocusChangeListener { _, focused -> if (focused) reveal() }
+    }
     private val retry = context.label("Retry", 15f).apply {
         gravity = Gravity.CENTER
         isFocusable = true; isClickable = true
@@ -72,7 +84,11 @@ internal class PlayerChrome(
         })
         addView(top, LayoutParams(-1, context.dp(116), Gravity.TOP))
         bottom.background = GradientDrawable(GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(0xD907111D.toInt(), Color.TRANSPARENT))
-        bottom.addView(transport, LayoutParams(context.dp(48), context.dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
+        val playbackControls = context.row().apply {
+            addView(transport, LinearLayout.LayoutParams(context.dp(48), context.dp(48)))
+            addView(live, LinearLayout.LayoutParams(context.dp(80), context.dp(40)).apply { marginStart = context.dp(12) })
+        }
+        bottom.addView(playbackControls, LayoutParams(-2, context.dp(48), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL)
             .apply { bottomMargin = context.dp(28) })
         addView(bottom, LayoutParams(-1, context.dp(108), Gravity.BOTTOM))
         addView(previous, LayoutParams(context.dp(56), context.dp(56), Gravity.START or Gravity.CENTER_VERTICAL)
@@ -106,11 +122,30 @@ internal class PlayerChrome(
         }
     }
 
-    fun showConnecting() {
+    fun setLiveState(state: LiveState) {
+        val wasFocused = live.isFocused
+        liveState = state
+        live.visibility = if (state != LiveState.HIDDEN && (mode == Mode.PLAYING || mode == Mode.PAUSED)) VISIBLE else GONE
+        live.isFocusable = state == LiveState.BEHIND
+        live.isClickable = state == LiveState.BEHIND
+        live.contentDescription = if (state == LiveState.BEHIND) "Go live" else "Live"
+        live.setTextColor(if (state == LiveState.LIVE) Color.WHITE else MUTED)
+        live.text = android.text.SpannableString("● LIVE").apply {
+            setSpan(android.text.style.ForegroundColorSpan(if (state == LiveState.LIVE) 0xFFED6673.toInt() else MUTED),
+                0, 1, android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        if (wasFocused && (state != LiveState.BEHIND || live.visibility != VISIBLE)) {
+            if (transport.visibility == VISIBLE) transport.requestFocus() else requestFocus()
+        }
+    }
+
+    fun showConnecting(overVideo: Boolean = false) {
         mode = Mode.CONNECTING
         connecting.isError = false
+        backdrop.alpha = if (overVideo) .55f else 1f
         backdrop.visibility = VISIBLE; connecting.visibility = VISIBLE; failure.visibility = GONE
         transport.visibility = GONE
+        setLiveState(LiveState.HIDDEN)
         reveal()
         requestFocus()
     }
@@ -120,16 +155,19 @@ internal class PlayerChrome(
         mode = if (playing) Mode.PLAYING else Mode.PAUSED
         backdrop.visibility = GONE; connecting.visibility = GONE; failure.visibility = GONE
         transport.visibility = VISIBLE
+        setLiveState(liveState)
         transport.icon = if (playing) PlayerControlButton.Icon.PAUSE else PlayerControlButton.Icon.PLAY
         transport.contentDescription = if (playing) "Pause" else "Play"
         if (changed) reveal()
     }
 
-    fun showUnavailable() {
+    fun showUnavailable(overVideo: Boolean = false) {
         mode = Mode.UNAVAILABLE
         connecting.isError = true
+        backdrop.alpha = if (overVideo) .55f else 1f
         backdrop.visibility = VISIBLE; connecting.visibility = VISIBLE; failure.visibility = VISIBLE
         transport.visibility = GONE
+        setLiveState(LiveState.HIDDEN)
         reveal()
         retry.requestFocus()
     }
@@ -155,8 +193,13 @@ internal class PlayerChrome(
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
                 if (event.repeatCount == 0) {
                     reveal()
-                    if (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT && previous.isEnabled) onPrevious()
-                    if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && next.isEnabled) onNext()
+                    if (transport.isFocused || live.isFocused) {
+                        if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && live.isFocusable && live.visibility == VISIBLE) live.requestFocus()
+                        if (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT) transport.requestFocus()
+                    } else {
+                        if (event.keyCode == KeyEvent.KEYCODE_DPAD_LEFT && previous.isEnabled) onPrevious()
+                        if (event.keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && next.isEnabled) onNext()
+                    }
                 }
             }
             KeyEvent.KEYCODE_DPAD_UP -> { reveal(); requestFocus() }

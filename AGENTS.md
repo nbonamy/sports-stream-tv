@@ -33,6 +33,8 @@ deployment status, and project history out of the README.
 | `IndexedPlaylistParser.kt`, `BarecropConfigParser.kt` | Pure decoders for individual encoded player formats |
 | `app/.../MainActivity.kt` | Media3 setup, stream selection, lifecycle, renewal, and recovery |
 | `app/.../PlayerChrome.kt` | Playback controls and connecting/unavailable states |
+| `app/.../LivePlayback.kt` | Determine live status and seek to the live playback target |
+| `app/.../RetainedVideoFrame.kt` | Hold a video frame behind reconnecting controls across decoder resets |
 
 Core paths above are under `core/src/main/kotlin/fr/bonamy/sports/core/`;
 app paths are under `app/src/main/java/fr/bonamy/sports/`.
@@ -149,11 +151,34 @@ error UI. Retrying a known failed resolution at 3/6/9-second intervals adds dela
 without new information. Media3 interruptions still use bounded recovery, and Retry
 lets the user request a fresh resolution.
 
+**Reconnecting preserves the picture.** After a rendered frame, buffering and
+same-stream retries use a translucent backdrop. Initial loading and explicit stream
+changes use the opaque backdrop. `PlayerView` keeps content on reset; additionally,
+`RetainedVideoFrame` takes one bounded PixelCopy snapshot when interruption begins,
+since a decoder reset can clear the TV's surface. Capture before resetting playback,
+keep it through retries, and clear it after playback resumes, on stream changes,
+and on release. Invalidate pending copies so a late callback cannot cover resumed
+video or a different channel. A ready video track must render its first frame before
+the loading overlay disappears; audio-only playback does not require that event.
+Snapshots stay in memory and are never logged or persisted.
+
 **Signed URLs expire.** Store channel-page URLs; resolve media URLs afresh. The current
 resolver recognizes an `expires` query parameter and the app schedules renewal from
 it. Another expiry format needs explicit parsing and tests, not an assumption that
 all provider tokens share that parameter. Preserve coroutine cancellation so an old
 channel's resolution cannot replace a newer selection.
+
+**Live status uses the provider's playback target.** Compare the current position
+with the live window's default position, allowing five seconds for playlist refresh
+differences. A live broadcast normally has some delay; comparing against zero live
+offset would mislabel normal playback. Paused playback offers Go live, which calls
+`seekToDefaultPosition()` and resumes, following
+[Media3's live seeking guidance](https://developer.android.com/media/media3/exoplayer/live-streaming#seeking_in_live_streams).
+Hide LIVE for non-live, ended, unknown-target, or unavailable-seek streams. Update
+status on player events and while paused; cancel polling when releasing the player.
+Down enters the playback controls, Left/Right stays within that row, and Up returns
+to stream navigation. When LIVE becomes a status indicator, return its focus to
+play/pause. `LivePlaybackTests` covers these transitions and generates local previews.
 
 **Check the device clock.** A restored emulator snapshot had an outdated date and
 rejected otherwise valid certificates. Compare emulator/TV time with real time
@@ -182,6 +207,8 @@ be null while a tile is actually focused.
 
 `PlayerPreviewActivity` is debug-only and exercises the real player chrome without
 network access. On an authorized debug device, launch it with `--es state connecting`,
-`playing`, `paused`, or `unavailable`; `--ei streams 1` checks a single-stream channel.
+`playing`, `paused`, `live`, `behind`, `reconnecting`, or `unavailable`;
+`--ei streams 1` checks a single-stream channel. The reconnecting preview uses a
+colored stand-in for video to show translucency; real frame retention needs device testing.
 It is a UI check, not evidence of working video. Debug and release APKs have different
 signatures; preserve the existing installation and its signing identity when testing.

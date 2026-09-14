@@ -1,12 +1,17 @@
 # Transparent sport icons
 
 The final icons are `app/src/main/res/drawable-nodpi/sport_*_cutout.png`.
-All ten are 512 × 384 RGBA PNGs with actual transparency. Foregrounds are cropped
+All are 512 × 384 RGBA PNGs with actual transparency. Foregrounds are cropped
 to their visible bounds, fitted proportionally into a 480 × 352 content box,
 and centered on the canvas. The app displays every icon in a 132 × 96 dp box
 on home, schedule, and channel screens. Labels occupy separate layout space.
 
 The original imagegen artwork is preserved in [originals](originals).
+The [additional sports](more-sports.md) and [LiveTV](live-tv.md) were generated with
+real alpha; normalize those with `tools/normalize_transparent_icon.py`, preserving
+their alpha rather than applying foreground segmentation again.
+
+For the original ten sports icons:
 Built-in imagegen was tried for background extraction, but its results contained
 opaque checkerboards. Nicolas approved local background removal instead.
 The final images preserve the original artwork using macOS Vision foreground
