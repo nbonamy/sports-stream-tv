@@ -1,7 +1,7 @@
 # Artwork
 
-Source PNGs live in [originals](originals). The app bundles the prepared
-`*_cutout.png` files in `app/src/main/res/drawable-nodpi/`.
+Source PNGs live in [originals](originals). Both platforms use the prepared
+`*_cutout.png` files in `assets/sports/drawable-nodpi/`.
 
 ## Adding an icon
 
@@ -22,15 +22,16 @@ Save the source in `originals/`, then normalize it. With Pillow installed, run f
 the repository root:
 
 ```sh
-python3 tools/normalize_transparent_icon.py docs/artwork/originals/sport_mma.png app/src/main/res/drawable-nodpi/sport_mma_cutout.png
+python3 tools/normalize_transparent_icon.py docs/artwork/originals/sport_mma.png assets/sports/drawable-nodpi/sport_mma_cutout.png
 ```
 
 The normalizer crops to visible bounds (alpha > 16), fits the foreground
 proportionally into 480 × 352, and centers it on a 512 × 384 RGBA canvas.
 It preserves transparency and rejects an opaque source.
 
-Use the shared artwork mapping in the app so the icon appears on tiles and page
-headers. Every icon uses a 132 × 96 dp display frame, with labels laid out separately.
+Android reads `assets/sports/` as an additional resource directory. Desktop builds
+should consume these same PNGs. Keep labels separate from the artwork. Android uses
+a 132 × 96 dp display frame on tiles and page headers.
 
 ## Rebuilding existing cutouts
 
@@ -43,8 +44,8 @@ backgrounds. Rebuild these with macOS Vision on macOS 14 or later, then refine t
 tennis racket's strings:
 
 ```sh
-swift tools/prepare_sport_icons.swift docs/artwork/originals app/src/main/res/drawable-nodpi
-python3 tools/refine_tennis_cutout.py app/src/main/res/drawable-nodpi/sport_tennis_cutout.png
+swift tools/prepare_sport_icons.swift docs/artwork/originals assets/sports/drawable-nodpi
+python3 tools/refine_tennis_cutout.py assets/sports/drawable-nodpi/sport_tennis_cutout.png
 ```
 
 ## Check the result

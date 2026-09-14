@@ -4,6 +4,7 @@ plugins { id("com.android.application"); kotlin("android") }
 android {
     namespace = "fr.bonamy.sports"
     compileSdk = 36
+    sourceSets["main"].res.srcDir(rootProject.file("../assets/sports"))
     defaultConfig {
         applicationId = "fr.bonamy.sports"
         minSdk = 26

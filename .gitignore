@@ -1,5 +1,9 @@
 .gradle/
 .kotlin/
+node_modules/
+dist/
+out/
+.DS_Store
 **/build/
 local.properties
 .idea/

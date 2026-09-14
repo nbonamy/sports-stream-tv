@@ -1,44 +1,30 @@
 # Working on Sports
 
-Sports is a native Android TV app. Document its current behavior and maintenance
-procedures. Keep README.md focused on the product, installation, and remote controls.
+Sports has separate Android TV and Electron workspaces. Keep the root README focused
+on the product and platform entry points; each platform owns its setup and usage docs.
 
-## Product conventions
+## Shared conventions
 
 - Read listings and channel names from the provider. Investigation URLs belong in
-  test cases, not permanent channel shortcuts.
+  regression fixtures, not permanent channel shortcuts.
 - Preserve the selected channel and stream. Start the first stream while discovering
   alternatives; changing streams is an explicit user action.
-- Keep player copy minimal. Loading is blue, errors are red, and Retry is text with
-  a subtle focused background. Reconnecting overlays the last available video frame.
-- Back icons are outside remote focus navigation. Stream arrows appear only when
-  that direction has an alternative. LIVE is focusable only when it can return to live.
-- `make install` installs without launching; `make deploy` also launches. Use an
-  explicit `ANDROID_TV_DEVICE` when targeting an emulator or a particular TV, and
-  follow the user's device-testing instructions.
-
-## Code map
-
-| Area | Location |
-| --- | --- |
-| Listings, iframe discovery, player decoding, HTTP | `core/src/main/kotlin/fr/bonamy/sports/core/` |
-| Screens, Media3 playback, controls, artwork mapping | `app/src/main/java/fr/bonamy/sports/` |
-| Parser fixtures and live channel probe | `core/src/test/kotlin/fr/bonamy/sports/core/` |
-| Android UI checks and local previews | `app/src/test/java/fr/bonamy/sports/` |
+- Keep player copy minimal. Loading is blue, errors are red, and reconnecting overlays
+  the last available video frame. Show stream arrows only when that direction is available.
+- Keep signed URLs, cookies, tokens, signing keys, and captured provider HTML out of
+  the repository and logs.
 
 ## Task guides
 
-- **Channel missing, stream failing, or player support changing:** read
-  [Channel support and playback](docs/player.md). It covers failure classification,
-  document tracing, supported formats, request headers, decoder implementation,
-  regression fixtures, and live verification. A new hostname alone needs no allowlist entry.
-- **Playback controls, reconnecting, or URL renewal changing:** read the
-  [playback behavior](docs/player.md#playback-behavior) and
-  [device and ui checks](docs/player.md#device-and-ui-checks) sections before editing.
-- **Artwork being added or changed:** read [Artwork](docs/artwork/README.md).
-  Preserve the shared canvas and display dimensions;
-  verify actual alpha transparency.
+- **Android code, builds, or deployment:** read [android/AGENTS.md](android/AGENTS.md).
+- **Desktop implementation:** read [electron/AGENTS.md](electron/AGENTS.md).
+- **Missing channels, failing streams, or decoder support:** read
+  [Channel support](docs/player.md). It covers tracing, formats, headers, regression
+  fixtures, and verification. New hostnames alone do not need allowlist entries.
+- **Artwork:** read [Artwork](docs/artwork/README.md). Use the shared PNGs in
+  `assets/sports/`; preserve their dimensions and actual alpha transparency.
 
-Run `make check` after code changes. For documentation-only changes, check links,
-commands, and descriptions against the current code. Keep signed URLs, cookies,
-tokens, signing keys, and captured provider HTML out of the repository and logs.
+Keep cross-platform knowledge in `docs/`, and platform-specific guidance in that
+platform's `docs/`. Link to the authoritative document instead of duplicating it.
+Run the affected platform's checks after code or build changes. For docs-only changes,
+verify links and commands against the current tree.
