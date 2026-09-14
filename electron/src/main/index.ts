@@ -14,6 +14,7 @@ import { getCountries, getEvents } from "./catalog";
 import { discover, resolve, type ResolvedStream } from "./resolver";
 import { destination, request } from "./http";
 import { rangeHeader } from "./media";
+import { developmentOrigin, isRendererURL } from "./renderer-origin";
 import type { Channel, StreamLink } from "../shared/model";
 
 protocol.registerSchemesAsPrivileged([
@@ -28,6 +29,9 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 app.setName("Sports");
+const devOrigin = developmentOrigin(app.isPackaged, process.env.SPORTS_DEV_ORIGIN);
+if (devOrigin && process.env.SPORTS_DEV_USER_DATA)
+  app.setPath("userData", process.env.SPORTS_DEV_USER_DATA);
 let window: BrowserWindow | null = null;
 const pending = new Map<string, { abort: AbortController; token?: string }>();
 const playback = new Map<string, ResolvedStream>();
@@ -36,7 +40,7 @@ const check = (event: IpcMainInvokeEvent) => {
     !window ||
     event.sender !== window.webContents ||
     event.senderFrame !== window.webContents.mainFrame ||
-    !event.senderFrame.url.startsWith("sports://app/")
+    !isRendererURL(event.senderFrame.url, devOrigin)
   )
     throw new Error("Invalid sender");
 };
@@ -223,7 +227,7 @@ app.whenReady().then(() => {
       clear();
       window = null;
     });
-    void window.loadURL("sports://app/");
+    void window.loadURL(devOrigin ? `${devOrigin}/` : "sports://app/");
   }
   Menu.setApplicationMenu(
     Menu.buildFromTemplate([
@@ -248,6 +252,6 @@ app.whenReady().then(() => {
   });
 });
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") app.quit();
+  if (devOrigin || process.platform !== "darwin") app.quit();
 });
 app.on("before-quit", clear);
