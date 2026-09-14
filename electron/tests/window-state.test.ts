@@ -3,10 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import {
-  restoreWindowBounds,
-  saveWindowBounds,
-} from "../src/main/window-state";
+import { restoreWindowState, saveWindowState } from "../src/main/window-state";
 
 const primary = { x: 0, y: 25, width: 1440, height: 875 };
 const secondary = { x: -1920, y: 0, width: 1920, height: 1080 };
@@ -20,23 +17,23 @@ function preferences(t: TestContext) {
 test("closing and reopening preserves size and position on a secondary monitor", (t) => {
   const path = preferences(t);
   const bounds = { x: -1700, y: 120, width: 1100, height: 750 };
-  saveWindowBounds(path, bounds);
+  saveWindowState(path, bounds);
   assert.deepEqual(
-    restoreWindowBounds(path, [primary, secondary], primary),
+    restoreWindowState(path, [primary, secondary], primary).bounds,
     bounds,
   );
   const resized = { x: 300, y: 100, width: 950, height: 650 };
-  saveWindowBounds(path, resized);
+  saveWindowState(path, resized);
   assert.deepEqual(
-    restoreWindowBounds(path, [primary, secondary], primary),
+    restoreWindowState(path, [primary, secondary], primary).bounds,
     resized,
   );
 });
 
 test("a disconnected monitor restores the window centered on the primary display", (t) => {
   const path = preferences(t);
-  saveWindowBounds(path, { x: -1700, y: 120, width: 1100, height: 750 });
-  assert.deepEqual(restoreWindowBounds(path, [primary], primary), {
+  saveWindowState(path, { x: -1700, y: 120, width: 1100, height: 750 });
+  assert.deepEqual(restoreWindowState(path, [primary], primary).bounds, {
     x: 170,
     y: 88,
     width: 1100,
@@ -46,15 +43,21 @@ test("a disconnected monitor restores the window centered on the primary display
 
 test("changed display dimensions keep the restored window inside the work area", (t) => {
   const path = preferences(t);
-  saveWindowBounds(path, { x: 900, y: 500, width: 1800, height: 1000 });
-  assert.deepEqual(restoreWindowBounds(path, [primary], primary), primary);
+  saveWindowState(path, { x: 900, y: 500, width: 1800, height: 1000 });
+  assert.deepEqual(
+    restoreWindowState(path, [primary], primary).bounds,
+    primary,
+  );
 });
 
 test("missing, corrupt and invalid preferences fall back to a usable default", (t) => {
   const path = preferences(t);
   const fallback = { x: 80, y: 53, width: 1280, height: 820 };
-  assert.deepEqual(restoreWindowBounds(path, [primary], primary), fallback);
-  saveWindowBounds(path, fallback);
+  assert.deepEqual(
+    restoreWindowState(path, [primary], primary).bounds,
+    fallback,
+  );
+  saveWindowState(path, fallback);
   for (const value of [
     "broken json",
     "null",
@@ -63,6 +66,38 @@ test("missing, corrupt and invalid preferences fall back to a usable default", (
     '{"x":"0","y":0,"width":900,"height":700}',
   ]) {
     writeFileSync(path, value);
-    assert.deepEqual(restoreWindowBounds(path, [primary], primary), fallback);
+    assert.deepEqual(
+      restoreWindowState(path, [primary], primary).bounds,
+      fallback,
+    );
+  }
+});
+
+test("maximized state survives reopening without replacing the normal bounds", (t) => {
+  const path = preferences(t);
+  const bounds = { x: 180, y: 100, width: 1000, height: 700 };
+  saveWindowState(path, bounds, true);
+  assert.deepEqual(restoreWindowState(path, [primary], primary), {
+    bounds,
+    maximized: true,
+  });
+  saveWindowState(path, bounds, false);
+  assert.deepEqual(restoreWindowState(path, [primary], primary), {
+    bounds,
+    maximized: false,
+  });
+});
+
+test("legacy preferences and invalid maximized flags restore a normal window", (t) => {
+  const path = preferences(t);
+  const bounds = { x: 180, y: 100, width: 1000, height: 700 };
+  saveWindowState(path, bounds);
+  for (const value of [
+    bounds,
+    { ...bounds, maximized: "false" },
+    { maximized: true },
+  ]) {
+    writeFileSync(path, JSON.stringify(value));
+    assert.equal(restoreWindowState(path, [primary], primary).maximized, false);
   }
 });

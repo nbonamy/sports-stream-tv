@@ -13,7 +13,7 @@ import { pathToFileURL } from "node:url";
 import { createSportsService } from "@sports/core/service";
 import { request } from "./http";
 import { developmentOrigin, isRendererURL } from "./renderer-origin";
-import { restoreWindowBounds, saveWindowBounds } from "./window-state";
+import { restoreWindowState, saveWindowState } from "./window-state";
 import type { Channel, StreamLink } from "@sports/core/model";
 
 protocol.registerSchemesAsPrivileged([
@@ -130,13 +130,14 @@ app.whenReady().then(() => {
   });
   function createWindow() {
     const statePath = join(app.getPath("userData"), "window-state.json");
-    const bounds = restoreWindowBounds(
+    const { bounds, maximized } = restoreWindowState(
       statePath,
       screen.getAllDisplays().map((display) => display.workArea),
       screen.getPrimaryDisplay().workArea,
     );
     window = new BrowserWindow({
       ...bounds,
+      show: false,
       minWidth: Math.min(800, bounds.width),
       minHeight: Math.min(600, bounds.height),
       backgroundColor: "#07111d",
@@ -158,8 +159,12 @@ app.whenReady().then(() => {
     window.webContents.session.setPermissionCheckHandler(() => false);
     window.webContents.on("render-process-gone", service.clear);
     const createdWindow = window;
+    window.once("ready-to-show", () => {
+      if (maximized) createdWindow.maximize();
+      createdWindow.show();
+    });
     window.on("close", () => {
-      saveWindowBounds(statePath, createdWindow.getNormalBounds());
+      saveWindowState(statePath, createdWindow.getNormalBounds(), createdWindow.isMaximized());
     });
     window.on("closed", () => {
       service.clear();

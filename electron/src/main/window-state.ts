@@ -4,12 +4,12 @@ import type { Rectangle } from "electron";
 
 const defaults = { width: 1280, height: 820 };
 
-export function restoreWindowBounds(
+export function restoreWindowState(
   path: string,
   workAreas: Rectangle[],
   primary: Rectangle,
-): Rectangle {
-  let saved: Rectangle | undefined;
+): { bounds: Rectangle; maximized: boolean } {
+  let saved: (Rectangle & { maximized?: boolean }) | undefined;
   try {
     const value = JSON.parse(readFileSync(path, "utf8"));
     if (
@@ -51,23 +51,34 @@ export function restoreWindowBounds(
     Math.max(600, saved?.height ?? defaults.height),
   );
   return {
-    width,
-    height,
-    x:
-      saved && visible
-        ? Math.max(area.x, Math.min(saved.x, area.x + area.width - width))
-        : Math.round(area.x + (area.width - width) / 2),
-    y:
-      saved && visible
-        ? Math.max(area.y, Math.min(saved.y, area.y + area.height - height))
-        : Math.round(area.y + (area.height - height) / 2),
+    maximized: saved?.maximized === true,
+    bounds: {
+      width,
+      height,
+      x:
+        saved && visible
+          ? Math.max(area.x, Math.min(saved.x, area.x + area.width - width))
+          : Math.round(area.x + (area.width - width) / 2),
+      y:
+        saved && visible
+          ? Math.max(area.y, Math.min(saved.y, area.y + area.height - height))
+          : Math.round(area.y + (area.height - height) / 2),
+    },
   };
 }
 
-export function saveWindowBounds(path: string, bounds: Rectangle): void {
+export function saveWindowState(
+  path: string,
+  bounds: Rectangle,
+  maximized = false,
+): void {
   try {
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(`${path}.tmp`, JSON.stringify(bounds), "utf8");
+    writeFileSync(
+      `${path}.tmp`,
+      JSON.stringify({ ...bounds, maximized }),
+      "utf8",
+    );
     renameSync(`${path}.tmp`, path);
   } catch {
     // Saving preferences must not block closing the app.
