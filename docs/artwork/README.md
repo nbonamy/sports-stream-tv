@@ -29,8 +29,8 @@ The normalizer crops to visible bounds (alpha > 16), fits the foreground
 proportionally into 480 × 352, and centers it on a 512 × 384 RGBA canvas.
 It preserves transparency and rejects an opaque source.
 
-Android reads `assets/sports/` as an additional resource directory. Desktop builds
-should consume these same PNGs. Keep labels separate from the artwork. Android uses
+Android reads `assets/sports/` as an additional resource directory. The desktop build
+copies these same PNGs into its packaged renderer assets. Keep labels separate from the artwork. Android uses
 a 132 × 96 dp display frame on tiles and page headers.
 
 ## Rebuilding existing cutouts

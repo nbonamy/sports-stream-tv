@@ -14,6 +14,8 @@ the repository root Makefile also forwards Android targets.
 - Shared sport artwork is an additional Gradle resource directory at `../assets/sports/`.
   Update the shared source rather than adding platform copies.
 
+The provider constant is generated from `../config/provider.json`.
+
 ## Code and maintenance
 
 - `core/src/main/kotlin/fr/bonamy/sports/core/` contains provider listings, HTTP,

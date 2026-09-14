@@ -14,6 +14,9 @@ on the product and platform entry points; each platform owns its setup and usage
 - Keep signed URLs, cookies, tokens, signing keys, and captured provider HTML out of
   the repository and logs.
 
+The provider base URL has one source: `config/provider.json`. Android generates its
+Kotlin constant from this file; Electron imports it at build time.
+
 ## Task guides
 
 - **Android code, builds, or deployment:** read [android/AGENTS.md](android/AGENTS.md).

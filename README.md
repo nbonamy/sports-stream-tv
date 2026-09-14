@@ -9,7 +9,7 @@ Live sports and live TV, with clear schedules, channel selection, and fullscreen
 | Platform | Status | Setup and usage |
 | --- | --- | --- |
 | Android TV | Available | [Android README](android/README.md) |
-| macOS / Electron | Implementation pending | [Desktop README](electron/README.md) |
+| macOS / Electron | Available | [Desktop README](electron/README.md) |
 
 ## Features
 
@@ -34,8 +34,9 @@ on scheduled start times and estimated event durations, rather than a live-statu
 ## Repository
 
 - `android/` — Android app, Kotlin provider resolver, Gradle, and device tooling.
-- `electron/` — desktop app workspace.
-- `assets/sports/` — shared sport icons, consumed directly by the Android build.
+- `electron/` — Vue desktop app, provider resolver, and Mac packaging.
+- `assets/sports/` — sport icons shared by both platform builds.
+- `config/provider.json` — the shared provider base URL; rebuild both apps after changing it.
 - `docs/` — shared channel-support and artwork guidance.
 - `android/docs/` — Android playback and device checks. Each platform keeps its own specific docs.
 

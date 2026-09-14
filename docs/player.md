@@ -6,7 +6,9 @@ on the configuration format in the page; iframe and CDN hostnames can change.
 
 The Kotlin implementation under `android/` is the reference for the formats and
 fixtures below. Run its commands from `android/`. Platform playback behavior is
-documented in [Android playback](../android/docs/player.md).
+documented in [Android playback](../android/docs/player.md) and
+[Desktop playback](../electron/docs/player.md). Electron has equivalent TypeScript
+parsers and fixtures under `electron/src/main/` and `electron/tests/`.
 
 ## Diagnose a channel that does not work
 
