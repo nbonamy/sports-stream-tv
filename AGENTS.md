@@ -1,6 +1,7 @@
 # Working on Sports
 
-Sports has separate Android TV and Electron workspaces. Keep the root README focused
+Sports has Android TV, Electron, and Capacitor mobile workspaces. Electron and mobile
+share TypeScript and Vue packages under `packages/`. Keep the root README focused
 on the product and platform entry points; each platform owns its setup and usage docs.
 
 ## Shared conventions
@@ -15,11 +16,13 @@ on the product and platform entry points; each platform owns its setup and usage
   the repository and logs.
 
 The provider base URL has one source: `config/provider.json`. Android generates its
-Kotlin constant from this file; Electron imports it at build time.
+Kotlin constant from this file; the shared TypeScript core imports it at build time.
 
 ## Task guides
 
 - **Android code, builds, or deployment:** read [android/AGENTS.md](android/AGENTS.md).
+- **Shared Vue or TypeScript:** read [packages/AGENTS.md](packages/AGENTS.md).
+- **Mobile implementation or builds:** read [mobile/AGENTS.md](mobile/AGENTS.md).
 - **Desktop implementation:** read [electron/AGENTS.md](electron/AGENTS.md).
 - **Missing channels, failing streams, or decoder support:** read
   [Channel support](docs/player.md). It covers tracing, formats, headers, regression

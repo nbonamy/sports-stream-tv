@@ -4,9 +4,9 @@ import https from "node:https";
 import { PassThrough } from "node:stream";
 import { EventEmitter } from "node:events";
 import { gzipSync, deflateSync, brotliCompressSync } from "node:zlib";
-import { request } from "../src/main/http";
-import { resolve } from "../src/main/resolver";
-import { PROVIDER_BASE, USER_AGENT } from "../src/main/provider";
+import { request, page } from "../src/main/http";
+import { resolve } from "@sports/core/resolver";
+import { PROVIDER_BASE, USER_AGENT } from "@sports/core/provider";
 
 function responses(
   t: TestContext,
@@ -62,7 +62,7 @@ test("Vix selected stream follows a gzip wrapper despite requesting identity", a
     { body: Buffer.from(`source: "${media}"`) },
     { encoding: "gzip", body: gzipSync("#EXTM3U\n#EXTINF:8,\nsegment.ts") },
   ]);
-  const result = await resolve({ label: "Stream 1", url: selected });
+  const result = await resolve({ label: "Stream 1", url: selected }, undefined, page);
   assert.deepEqual(
     calls.map((c) => c.url),
     [selected, wrapper, player, media],

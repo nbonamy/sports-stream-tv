@@ -9,13 +9,10 @@ import {
 } from "electron";
 import { join, resolve as resolvePath, sep } from "node:path";
 import { pathToFileURL } from "node:url";
-import { randomUUID } from "node:crypto";
-import { getCountries, getEvents } from "./catalog";
-import { discover, resolve, type ResolvedStream } from "./resolver";
-import { destination, request } from "./http";
-import { rangeHeader } from "./media";
+import { createSportsService } from "@sports/core/service";
+import { request } from "./http";
 import { developmentOrigin, isRendererURL } from "./renderer-origin";
-import type { Channel, StreamLink } from "../shared/model";
+import type { Channel, StreamLink } from "@sports/core/model";
 
 protocol.registerSchemesAsPrivileged([
   {
@@ -29,12 +26,14 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 app.setName("Sports");
-const devOrigin = developmentOrigin(app.isPackaged, process.env.SPORTS_DEV_ORIGIN);
+const devOrigin = developmentOrigin(
+  app.isPackaged,
+  process.env.SPORTS_DEV_ORIGIN,
+);
 if (devOrigin && process.env.SPORTS_DEV_USER_DATA)
   app.setPath("userData", process.env.SPORTS_DEV_USER_DATA);
 let window: BrowserWindow | null = null;
-const pending = new Map<string, { abort: AbortController; token?: string }>();
-const playback = new Map<string, ResolvedStream>();
+const service = createSportsService(request);
 const check = (event: IpcMainInvokeEvent) => {
   if (
     !window ||
@@ -44,60 +43,6 @@ const check = (event: IpcMainInvokeEvent) => {
   )
     throw new Error("Invalid sender");
 };
-function link(value: StreamLink): StreamLink {
-  if (
-    !value ||
-    typeof value.label !== "string" ||
-    value.label.length > 1000 ||
-    typeof value.url !== "string" ||
-    value.url.length > 16384
-  )
-    throw new Error("Invalid stream");
-  destination(value.url);
-  return { label: value.label, url: value.url };
-}
-function channel(value: Channel): Channel {
-  if (
-    !value ||
-    typeof value.name !== "string" ||
-    !Array.isArray(value.links) ||
-    value.links.length < 1 ||
-    value.links.length > 32
-  )
-    throw new Error("Invalid channel");
-  return { name: value.name, links: value.links.map(link) };
-}
-async function operation<T>(
-  id: string,
-  fn: (signal: AbortSignal) => Promise<T>,
-  token?: string,
-): Promise<T> {
-  if (
-    typeof id !== "string" ||
-    id.length > 100 ||
-    pending.has(id) ||
-    pending.size >= 64
-  )
-    throw new Error("Invalid request");
-  const abort = new AbortController();
-  pending.set(id, { abort, token });
-  try {
-    return await fn(abort.signal);
-  } catch {
-    throw new Error("Source unavailable");
-  } finally {
-    pending.delete(id);
-  }
-}
-function release(token: string) {
-  playback.delete(token);
-  for (const p of pending.values()) if (p.token === token) p.abort.abort();
-}
-function clear() {
-  for (const p of pending.values()) p.abort.abort();
-  pending.clear();
-  playback.clear();
-}
 
 app.whenReady().then(() => {
   if (!app.isPackaged && process.platform === "darwin")
@@ -144,61 +89,39 @@ app.whenReady().then(() => {
   });
   ipcMain.handle("events", (e, id: string) => {
     check(e);
-    return operation(randomUUID(), (signal) => getEvents(id, signal));
+    return service.events(id);
   });
   ipcMain.handle("countries", (e) => {
     check(e);
-    return operation(randomUUID(), getCountries);
+    return service.countries();
   });
   ipcMain.handle("streams", (e, value: Channel, id: string) => {
     check(e);
-    const c = channel(value);
-    return operation(id, (signal) => discover(c, signal));
+    return service.streams(value, id);
   });
   ipcMain.handle("resolve", (e, value: StreamLink, id: string) => {
     check(e);
-    const selected = link(value);
-    return operation(id, async (signal) => {
-      const resolved = await resolve(selected, signal);
-      signal.throwIfAborted();
-      if (playback.size >= 4) release(playback.keys().next().value!);
-      const token = randomUUID();
-      playback.set(token, resolved);
-      return { token, url: resolved.url, expiresAt: resolved.expiresAt };
-    });
+    return service.resolve(value, id);
   });
   ipcMain.handle(
     "media",
     (e, token: string, url: string, id: string, range?: [number, number]) => {
       check(e);
-      const media = playback.get(token);
-      if (!media) throw new Error("Playback ended");
-      if (typeof url !== "string" || url.length > 16384)
-        throw new Error("Invalid media");
-      const headers = { ...media.headers };
-      const requestedRange = rangeHeader(range);
-      if (requestedRange) headers.Range = requestedRange;
-      return operation(
-        id,
-        async (signal) => {
-          const r = await request(url, headers, signal, 32 * 1024 * 1024);
-          return { url: r.url, data: new Uint8Array(r.data), status: r.status };
-        },
-        token,
-      );
+      return service.media(token, url, id, range);
     },
   );
   ipcMain.on("cancel", (e, id: string) => {
     check(e);
-    pending.get(id)?.abort.abort();
+    service.cancel(id);
   });
-  ipcMain.on("release", (e, token: string) => {
+  ipcMain.on("release", (e, id: string) => {
     check(e);
-    release(token);
+    service.release(id);
   });
   ipcMain.handle("fullscreen", (e, enabled?: boolean) => {
     check(e);
-    if (enabled !== undefined && typeof enabled !== "boolean") throw new Error("Invalid fullscreen state");
+    if (enabled !== undefined && typeof enabled !== "boolean")
+      throw new Error("Invalid fullscreen state");
     const wasFullscreen = window!.isFullScreen();
     window!.setFullScreen(enabled ?? !wasFullscreen);
     return wasFullscreen;
@@ -226,9 +149,9 @@ app.whenReady().then(() => {
       callback(false),
     );
     window.webContents.session.setPermissionCheckHandler(() => false);
-    window.webContents.on("render-process-gone", clear);
+    window.webContents.on("render-process-gone", service.clear);
     window.on("closed", () => {
-      clear();
+      service.clear();
       window = null;
     });
     void window.loadURL(devOrigin ? `${devOrigin}/` : "sports://app/");
@@ -258,4 +181,4 @@ app.whenReady().then(() => {
 app.on("window-all-closed", () => {
   if (devOrigin || process.platform !== "darwin") app.quit();
 });
-app.on("before-quit", clear);
+app.on("before-quit", service.clear);

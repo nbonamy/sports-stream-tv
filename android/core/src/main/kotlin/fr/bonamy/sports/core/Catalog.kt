@@ -65,19 +65,33 @@ object CatalogParser {
                     val parsedDate = parseDate(element.text(), now)
                     if (parsedDate != null) date = parsedDate else heading = element.text()
                 }
-                else -> element.select("tr").forEach rowLoop@ { row ->
-                    val title = row.selectFirst(".event-title")?.text()?.trim().orEmpty()
-                    if (title.isBlank()) return@rowLoop
-                    val links = links(row, pageUrl)
-                    if (links.isEmpty()) return@rowLoop
-                    val rawTime = row.selectFirst(".matchtime")?.text()?.trim().orEmpty()
-                    val time = runCatching { LocalTime.parse(rawTime, DateTimeFormatter.ofPattern("H:mm")) }.getOrNull()
-                    val timestamp = row.attr("data-timestamp").toLongOrNull()?.let { if (it < 100_000_000_000L) it * 1000 else it }
-                        ?: if (date != null && time != null) date!!.atTime(time).toInstant(sourceZone).toEpochMilli() else null
-                    events += SportsEvent(title, row.selectFirst(".leaguename")?.text() ?: heading,
-                        if (timestamp == null && rawTime.isNotBlank()) "$rawTime · source time (UTC+1)" else "",
-                        timestamp, links, rawTime.isBlank() && timestamp == null && (title.contains("CHANNEL", true) || heading.contains("24/7")),
-                        row.selectFirst("img.leagueimg")?.absUrl("src")?.takeIf { it.startsWith("https://") })
+                else -> {
+                    var previousMinutes: Int? = null
+                    var dayOffset = 0L
+                    element.select("tr").forEach rowLoop@ { row ->
+                        val title = row.selectFirst(".event-title")?.text()?.trim().orEmpty()
+                        if (title.isBlank()) return@rowLoop
+                        val links = links(row, pageUrl)
+                        if (links.isEmpty()) return@rowLoop
+                        val rawTime = row.selectFirst(".matchtime")?.text()?.trim().orEmpty()
+                        val competition = row.selectFirst(".leaguename")?.text()?.takeIf { it.isNotBlank() } ?: heading
+                        // Dated fixtures end at the continuous-channel section; detached
+                        // leftover rows must not inherit the date of the earlier schedule.
+                        if (Regex("(?i)\\b24\\s*/\\s*7\\s+CHANNELS?\\b").containsMatchIn(competition) && rawTime.isNotBlank()) return@rowLoop
+                        val time = runCatching { LocalTime.parse(rawTime, DateTimeFormatter.ofPattern("H:mm")) }.getOrNull()
+                        if (time != null) {
+                            val minutes = time.hour * 60 + time.minute
+                            // A large backwards jump is the evening table crossing midnight.
+                            if (previousMinutes?.let { it - minutes > 12 * 60 } == true) dayOffset++
+                            previousMinutes = minutes
+                        }
+                        val timestamp = row.attr("data-timestamp").toLongOrNull()?.let { if (it < 100_000_000_000L) it * 1000 else it }
+                            ?: if (date != null && time != null) date!!.plusDays(dayOffset).atTime(time).toInstant(sourceZone).toEpochMilli() else null
+                        events += SportsEvent(title, competition,
+                            if (timestamp == null && rawTime.isNotBlank()) "$rawTime · source time (UTC+1)" else "",
+                            timestamp, links, rawTime.isBlank() && timestamp == null && (title.contains("CHANNEL", true) || heading.contains("24/7")),
+                            row.selectFirst("img.leagueimg")?.absUrl("src")?.takeIf { it.startsWith("https://") })
+                    }
                 }
             }
         }

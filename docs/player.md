@@ -87,6 +87,11 @@ exception classes; redact signed URLs, query tokens, cookies, and credentials.
 
 ## Architecture and request flow
 
+Catalogs use the provider's dated competition sections. A `24/7 Channels` heading
+ends the timed fixture list; timed rows below it are ignored until a new competition
+heading. Within a competition table, a clock jump backwards by more than 12 hours
+advances the source date by one day. Explicit row timestamps take precedence.
+
 Core files are under `android/core/src/main/kotlin/fr/bonamy/sports/core/`;
 Android files are under `android/app/src/main/java/fr/bonamy/sports/`.
 
@@ -154,3 +159,15 @@ recognized operations instead of an identifier from one response.
 Nested wrapper chains need no special host entries. For example, quellefrappe →
 traitaunt and dlive → assetrage lead to the same `_econfig` decoder. Derive media
 headers from the final player's URL, regardless of the wrapper's domain.
+
+## Shared TypeScript implementation
+
+Electron and mobile share `packages/core/src/`: `catalog.ts` parses listings,
+`resolver.ts` discovers alternatives and resolves the selected chain, `decoders.ts`
+recognizes player formats, and `service.ts` owns cancellable playback sessions.
+`transport.ts` defines the supplied HTTP interface. Shared regression fixtures live
+in `packages/core/tests/`; add decoder fixes there once for both applications.
+
+`packages/ui/src/Player.vue` and `media-loader.ts` handle HLS.js playback and recovery.
+Platform details are in [Desktop playback](../electron/docs/player.md) and
+[Mobile playback](../mobile/docs/player.md). Android TV retains its Kotlin implementation.

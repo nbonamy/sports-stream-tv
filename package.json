@@ -1,0 +1,23 @@
+{
+  "name": "sports",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "electron",
+    "mobile"
+  ],
+  "scripts": {
+    "check": "npm run check --workspace=sports-desktop && npm run check --workspace=@sports/mobile",
+    "dev": "npm run dev --workspace=sports-desktop",
+    "dev:mobile": "npm run dev --workspace=@sports/mobile"
+  },
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "devDependencies": {
+    "typescript": "~5.9.3",
+    "tsx": "^4.23.13",
+    "@types/node": "^26.5.1",
+    "vue-tsc": "^3.3.11"
+  }
+}

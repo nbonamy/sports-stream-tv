@@ -9,6 +9,28 @@ import okhttp3.mockwebserver.MockWebServer
 import java.util.concurrent.TimeUnit
 
 class SourceTests {
+    @Test fun `continuous channel section excludes detached timed fixtures`() {
+        fun row(title: String, time: String = "") = """<tr><td class="matchtime">$time</td><td class="event-title">$title</td><td><a href="/$title/">Watch</a></td></tr>"""
+        val html = """<h2>SEPTEMBER 14, 2026</h2><h2>WTA</h2><table>${row("WTA-match", "19:00")}</table>
+            <h2>24/7 CHANNELS</h2><table>${row("TENNIS-CHANNEL")}</table>
+            <section class="spacer"></section><div><table>${row("leftover-match", "11:00")}</table></div>
+            <h2>SEPTEMBER 15, 2026</h2><h2>ATP</h2><table>${row("next-day-match", "12:00")}</table>"""
+        val events = CatalogParser.parse(html, "https://example.test/")
+        assertEquals(listOf("WTA-match", "TENNIS-CHANNEL", "next-day-match"), events.map { it.title })
+        assertTrue(events[1].isChannel)
+    }
+
+    @Test fun `evening fixture times roll past midnight per competition table`() {
+        fun row(title: String, time: String, timestamp: String = "") = """<tr data-timestamp="$timestamp"><td class="matchtime">$time</td><td class="event-title">$title</td><td><a href="/$title/">Watch</a></td></tr>"""
+        val explicit = java.time.Instant.parse("2026-09-14T20:00:00Z").toEpochMilli()
+        val html = """<h2>SEPTEMBER 14, 2026</h2><h2>WTA A</h2><table>
+            ${row("evening", "22:00")}${row("midnight", "00:00")}${row("late", "01:30")}</table>
+            <h2>WTA B</h2><table>${row("afternoon", "17:00")}${row("earlier", "16:00")}${row("explicit", "00:00", explicit.toString())}</table>"""
+        assertEquals(listOf("2026-09-14T21:00:00Z", "2026-09-14T23:00:00Z", "2026-09-15T00:30:00Z",
+            "2026-09-14T16:00:00Z", "2026-09-14T15:00:00Z", "2026-09-14T20:00:00Z").map { java.time.Instant.parse(it).toEpochMilli() },
+            CatalogParser.parse(html, "https://example.test/").map { it.startsAt })
+    }
+
     @Test fun `catalog only includes match rows and preserves source alternatives`() {
         val html = """<h2>Premier League</h2><a href="/ad">Ad</a><table>
           <tr data-timestamp="1789340400000"><td class="event-title"><img src="/team.png">Team A vs Team B</td><td class="leaguename"><img class="leagueimg" src="https://cdn.livesoccertv.com/league.png">Premier League</td>

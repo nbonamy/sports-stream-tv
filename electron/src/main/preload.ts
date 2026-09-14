@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { SportsApi } from "../shared/model";
+import type { SportsApi } from "@sports/core/model";
 
 const api: SportsApi = {
   events: (id) => ipcRenderer.invoke("events", id),

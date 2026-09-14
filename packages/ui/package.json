@@ -1,0 +1,20 @@
+{
+  "name": "@sports/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*.vue": "./src/*.vue",
+    "./style.css": "./src/style.css",
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "tsx --test tests/*.test.ts",
+    "check": "vue-tsc --noEmit && npm test"
+  },
+  "dependencies": {
+    "@sports/core": "0.1.0",
+    "vue": "^3.5.42",
+    "hls.js": "^1.7.3"
+  }
+}

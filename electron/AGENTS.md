@@ -6,9 +6,10 @@ full-width schedule rows, and minimal player copy.
 
 ## Code and checks
 
-- `src/main/` owns provider HTTP, parsing, resolution, media requests, and Electron IPC.
-- `src/renderer/` owns the Vue screens, player, and HLS loader adapter.
-- `src/shared/` defines the data passed across the preload boundary.
+- `src/main/` owns Node HTTP, Electron IPC, and the desktop window.
+- `src/renderer/` injects the preload services into the shared Vue application.
+- Follow [shared package guidance](../packages/AGENTS.md) for UI, provider parsing,
+  resolution, or playback-session changes.
 - Run `npm run check` from `electron/` after code changes. Use the scripts in
   package.json for running and packaging the app.
 
@@ -24,6 +25,6 @@ full-width schedule rows, and minimal player copy.
   `.env` contains private credentials. Load it without displaying it and keep it out
   of artifacts. Verify signing and Gatekeeper acceptance before calling a release ready.
 
-Provider HTML is parsed as data in the main process. Keep the renderer sandboxed,
+On desktop, shared provider parsing runs in the main process. Keep the renderer sandboxed,
 context-isolated, and limited to the explicit preload API. Packaged code loads from
 `sports://app/`; restrict any development origin to the development runner.

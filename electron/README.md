@@ -5,10 +5,10 @@ The desktop app uses the same artwork and layout as [Sports for Android TV](../a
 
 ## Run
 
-Install Node.js 22.19 or later, then run from `electron/`:
+Install Node.js 22.19 or later, run `npm ci` from the repository root, then
+run from `electron/`:
 
 ```sh
-npm ci
 npm start
 ```
 

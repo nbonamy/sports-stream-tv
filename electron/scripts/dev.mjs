@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import { context } from "esbuild";
 import { createServer } from "vite";
 import electron from "electron";
-import { prepareAssets } from "./assets.mjs";
+import { prepareAssets } from "../../packages/ui/scripts/assets.mjs";
 import { mainBuildOptions } from "./main-build.mjs";
 
 process.chdir(fileURLToPath(new URL("..", import.meta.url)));

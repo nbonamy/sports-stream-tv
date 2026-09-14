@@ -5,17 +5,17 @@ and investigation. This document covers Electron's playback boundaries.
 
 ## Request flow
 
-1. `catalog.ts` reads sports and LiveTV listings. The provider entry point comes from
+1. Shared `packages/core/src/catalog.ts` reads sports and LiveTV listings. The provider entry point comes from
    the shared `config/provider.json`, through `provider.ts`.
-2. `resolver.ts` discovers numbered alternatives separately from resolving the
+2. Shared `resolver.ts` discovers numbered alternatives separately from resolving the
    selected iframe chain. `decoders.ts` interprets supported data formats.
 3. `http.ts` validates public HTTPS destinations, checks DNS during the actual
    connection lookup, follows bounded redirects, and limits request time and size.
    It decodes gzip, deflate, and Brotli responses even when the provider ignores
    `Accept-Encoding: identity`; both transferred and expanded bytes are bounded.
-4. `index.ts` keeps each resolved URL's headers in a short-lived playback session.
+4. Shared `service.ts` keeps each resolved URL's headers in a short-lived playback session.
    The renderer receives the session token and fresh playlist URL.
-5. `media-loader.ts` feeds HLS.js with bytes requested through preload IPC. The main
+5. Shared `packages/ui/src/media-loader.ts` feeds HLS.js with bytes requested through preload IPC. The main
    process supplies the same Referer, Origin, and User-Agent for playlists, encryption
    keys, and video segments. No provider page or advertising script executes in the renderer.
 
@@ -35,7 +35,7 @@ Validate that the provider page contains recognizable listings before applying
 sport-specific filters. The NBA page can contain only WNBA fixtures: filtering
 those out yields an empty NBA schedule, shown with empty Current and Upcoming
 sections. A page with no recognizable listings still reports a load failure.
-`tests/provider.test.ts` covers both cases.
+`packages/core/tests/provider.test.ts` covers both cases.
 
 ## Loader and IPC contracts
 
@@ -55,8 +55,8 @@ string array at the player’s exact index. Expressions, invalid indices, and al
 entries are not fallback streams.
 
 `tests/http.test.ts` covers compressed responses, limits, malformed bodies, and
-cancellation. `tests/media-loader.test.ts` exercises ordinary fragments, byte ranges, and HLS.js's
-success/cleanup order. `tests/provider.test.ts` covers format recognition, rotating
+cancellation. `packages/ui/tests/media-loader.test.ts` exercises ordinary fragments, byte ranges, and HLS.js's
+success/cleanup order. `packages/core/tests/provider.test.ts` covers format recognition, rotating
 identifiers, iframe selection, exact stream resolution, headers, and bounded traversal.
 
 ## Verify a change

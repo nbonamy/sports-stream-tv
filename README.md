@@ -10,6 +10,7 @@ Live sports and live TV, with clear schedules, channel selection, and fullscreen
 | --- | --- | --- |
 | Android TV | Available | [Android README](android/README.md) |
 | macOS / Electron | Available | [Desktop README](electron/README.md) |
+| iPhone / Android phone | Development preview | [Mobile README](mobile/README.md) |
 
 ## Features
 
@@ -34,9 +35,12 @@ on scheduled start times and estimated event durations, rather than a live-statu
 ## Repository
 
 - `android/` — Android app, Kotlin provider resolver, Gradle, and device tooling.
-- `electron/` — Vue desktop app, provider resolver, and Mac packaging.
-- `assets/sports/` — sport icons shared by both platform builds.
-- `config/provider.json` — the shared provider base URL; rebuild both apps after changing it.
+- `electron/` — desktop shell, Node networking, and Mac packaging.
+- `mobile/` — Capacitor iPhone and Android phone apps with native networking.
+- `packages/core/` — TypeScript provider parsing, stream resolution, and sessions.
+- `packages/ui/` — Vue screens and player shared by desktop and mobile.
+- `assets/sports/` — sport icons shared by all platform builds.
+- `config/provider.json` — the shared provider base URL; rebuild affected apps after changing it.
 - `docs/` — shared channel-support and artwork guidance.
 - `android/docs/` — Android playback and device checks. Each platform keeps its own specific docs.
 
@@ -45,6 +49,10 @@ and `make install ANDROID_TV_DEVICE=…` still work from here. Android build out
 local SDK configuration, and signing files live under `android/`.
 
 ## Development
+
+For the JavaScript workspaces, run `npm ci` at the root. `npm run check` checks
+the shared packages and both app bundles; `npm run dev` starts Electron. Native
+mobile builds are covered in its README.
 
 Read [AGENTS.md](AGENTS.md) and the target platform's AGENTS.md before making changes.
 For non-working channels, use [Channel support](docs/player.md). For new icons, use
