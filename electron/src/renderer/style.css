@@ -145,9 +145,6 @@ time {
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 18px 22px;
 }
-.sport-grid.more {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
 .sport-tile {
   background: transparent;
   border: 1.5px solid var(--line);
@@ -168,6 +165,10 @@ time {
   object-fit: contain;
 }
 .sport-tile span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 24px;
   font-weight: 700;
   line-height: 1.2;

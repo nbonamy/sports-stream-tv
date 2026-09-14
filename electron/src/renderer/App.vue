@@ -248,7 +248,7 @@ onUnmounted(() => {
           {{ route.type === "home" ? "Pick your sport." : "More sports" }}
         </h1>
         <p class="subtitle">Find what’s on. Choose your channel. Settle in.</p>
-        <div class="sport-grid" :class="{ more: route.type === 'more' }">
+        <div class="sport-grid">
           <button
             v-for="tile in tiles"
             :key="tile.id"
