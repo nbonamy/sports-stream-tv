@@ -5,6 +5,7 @@ import {
   Menu,
   net,
   protocol,
+  screen,
   type IpcMainInvokeEvent,
 } from "electron";
 import { join, resolve as resolvePath, sep } from "node:path";
@@ -12,6 +13,7 @@ import { pathToFileURL } from "node:url";
 import { createSportsService } from "@sports/core/service";
 import { request } from "./http";
 import { developmentOrigin, isRendererURL } from "./renderer-origin";
+import { restoreWindowBounds, saveWindowBounds } from "./window-state";
 import type { Channel, StreamLink } from "@sports/core/model";
 
 protocol.registerSchemesAsPrivileged([
@@ -127,11 +129,16 @@ app.whenReady().then(() => {
     return wasFullscreen;
   });
   function createWindow() {
+    const statePath = join(app.getPath("userData"), "window-state.json");
+    const bounds = restoreWindowBounds(
+      statePath,
+      screen.getAllDisplays().map((display) => display.workArea),
+      screen.getPrimaryDisplay().workArea,
+    );
     window = new BrowserWindow({
-      width: 1280,
-      height: 820,
-      minWidth: 800,
-      minHeight: 600,
+      ...bounds,
+      minWidth: Math.min(800, bounds.width),
+      minHeight: Math.min(600, bounds.height),
       backgroundColor: "#07111d",
       title: "Sports",
       titleBarStyle: "hiddenInset",
@@ -150,6 +157,10 @@ app.whenReady().then(() => {
     );
     window.webContents.session.setPermissionCheckHandler(() => false);
     window.webContents.on("render-process-gone", service.clear);
+    const createdWindow = window;
+    window.on("close", () => {
+      saveWindowBounds(statePath, createdWindow.getNormalBounds());
+    });
     window.on("closed", () => {
       service.clear();
       window = null;
