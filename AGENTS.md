@@ -25,10 +25,10 @@ deployment status, and project history out of the README.
 | Seam | Responsibility |
 | --- | --- |
 | `core/.../Catalog.kt`, `LiveTv.kt` | Provider listings, channel names, and stable channel-page URLs |
-| `core/.../PageClient.kt` | Cancellable HTTP requests, response-size and request-time limits |
+| `core/.../PageClient.kt`, `PlayerDestination.kt` | Cancellable, bounded HTTP requests; public HTTPS policy for player documents and manifests |
 | `core/.../StreamResolver.kt` → `streams()` | Discover numbered stream choices through wrapper pages |
 | `StreamResolver.resolve()` / `walk()` | Follow the selected embed chain, validate HLS, return `ResolvedStream` |
-| `PlayerPageParser.nextPages()` | Find known iframe destinations and derive inspected dynamic embeds |
+| `PlayerPageParser.nextPages()`, `PlayerEmbeds.kt` | Rank iframe candidates without a host allowlist and derive inspected dynamic embeds |
 | `PlayerPageParser.playlist()` | Extract or decode playlist data, then validate its HTTPS URL and `.m3u8` path |
 | `IndexedPlaylistParser.kt`, `BarecropConfigParser.kt` | Pure decoders for individual encoded player formats |
 | `app/.../MainActivity.kt` | Media3 setup, stream selection, lifecycle, renewal, and recovery |
@@ -37,10 +37,23 @@ deployment status, and project history out of the README.
 Core paths above are under `core/src/main/kotlin/fr/bonamy/sports/core/`;
 app paths are under `app/src/main/java/fr/bonamy/sports/`.
 
-Discovery and resolution serve different purposes. `streams()` extracts choices
-without resolving signed media URLs. Both discovery and playback call
-`nextPages(..., false)` so its legacy alternative-link behavior cannot silently
-change the selected stream. Keep that distinction when adding an embed type.
+Discovery and resolution serve different purposes. `streams()` extracts numbered
+choices without resolving signed media URLs. `nextPages()` follows iframe candidates,
+never numbered alternative links, so playback cannot silently change the selected
+stream. Keep that distinction when adding an embed type.
+
+Iframe traversal does not require a known hostname. Prefer fullscreen frames and
+player-related element metadata, then generic visible frames. Skip frames explicitly
+marked as ads, tracking, or chat, hidden frames, and tiny tracking frames. These are
+HTML heuristics: an unmarked unrelated frame may still require a bounded read.
+Consider at most eight candidates per document and visit at most twelve documents,
+with depth and overall timeout limits. Recognize supported configuration formats in
+the fetched content; never execute arbitrary provider scripts.
+
+`getPlayerPage()` accepts public HTTPS destinations, rejects credentials and local
+addresses, checks DNS results, and disallows HTTPS-to-HTTP redirects. This policy
+applies to resolver document and manifest requests; native playback uses Media3's
+separate data source. Keep destination checks when broadening iframe discovery.
 
 ## Adding another player type
 
@@ -50,6 +63,8 @@ change the selected stream. Keep that distinction when adding an embed type.
 2. **Trace the document chain.** Inspect the channel page, numbered alternative,
    nested iframes, and final player's configuration. Find the request that produces
    the HLS URL. Separate player requests from ads and unrelated browser errors.
+   If the final player already uses a supported format, inspect iframe visibility,
+   ranking, lazy-load attributes, and request headers before changing a decoder.
    Finish this step with the actual chain and the data transformation that constructs
    its media URL, not just a copied URL that happens to play.
 3. **Build a sanitized regression fixture.** Follow the examples in
@@ -57,14 +72,19 @@ change the selected stream. Keep that distinction when adding an embed type.
    requests and supply wrapper HTML, player data, and a manifest. Use synthetic
    URLs/tokens. Assert the selected stream's request sequence and required headers.
    Run the test against the existing code and confirm it catches the failure.
-4. **Implement at the narrowest seam.** Add an inspected cross-host iframe destination
-   to `nextPages()` only when needed. Put a substantial data decoder in its own pure
-   parser. Match the known format, validate types and sizes, and return null for
+4. **Implement at the narrowest seam.** A new host using a supported configuration
+   should work without a code change. For a dynamically constructed iframe, add a
+   format-specific derivation to `nextPages()` only after inspecting its construction.
+   Put a substantial data decoder in its own pure parser. Match the known format,
+   validate types and sizes, and return null for
    unknown or malformed data. Parse data rather than evaluating provider JavaScript.
    Preserve cancellation, timeouts, visited-page limits, and ad exclusion.
 5. **Verify failure cases as well as success.** Include changed expressions,
    malformed encoding, invalid URLs, and any observed rotating identifiers. A
-   stream-2 test must demonstrate that stream 1 was not tried instead. Run `make check`.
+   stream-2 test must demonstrate that stream 1 was not tried instead. Follow
+   `PlayerDiscoveryTests.kt` for renamed domains, iframe ranking, destination checks,
+   and bounded traversal. Keep fullscreen/visibility metadata faithful in fixtures.
+   Run `make check`.
 6. **Verify fresh live data.** Re-fetch the page after implementing the decoder.
    Validate the playlist, follow master playlists to a media playlist, then fetch
    media bytes using the same headers. A valid `#EXTM3U` alone is insufficient.
@@ -87,12 +107,12 @@ HTTP status codes, and exception classes. Remove temporary diagnostic logging.
 | la18hd / Win Sports | Clappr uses `source: playbackURL`, with the URL in a separate literal `var`/`let`/`const` declaration. Require both the source reference and literal declaration; an unused URL or executable concatenation is insufficient. |
 | stream-xhd / DirecTV | `IndexedPlaylistParser` reads shuffled `[index, base64]` pairs. Decode each value, keep its numeric character code, subtract the sum of two literal-return constants, and reconstruct by index. Validate the observed sort/decoding/source operations and reject duplicate indices or invalid characters. |
 | barecrop / Tennis stream 2 | `BarecropConfigParser` decodes `window._econfig`: outer base64 → four equal pieces → remove character at index 3 of each piece → base64-decode each → place pieces in destinations `[2, 0, 3, 1]` → concatenate → base64-decode → JSON. Prefer a nonblank `stream_url_nop2p`, otherwise `stream_url`. Ignore advertising and P2P settings. |
-| quellefrappe → traitaunt / French channels | Canal+ and beIN France's first streams traverse `quellefrappe.click` to `traitaunt.net`. Both document hosts must be recognized. traitaunt uses the same `_econfig` envelope as barecrop; reuse its decoder and derive media headers from traitaunt's origin. |
+| quellefrappe → traitaunt / French channels | Canal+ and beIN France's first streams traverse `quellefrappe.click` to `traitaunt.net`. traitaunt uses the same `_econfig` envelope as barecrop; reuse its decoder and derive media headers from the final player's origin. |
 | dlive → assetrage / HBO | `dlive.sx` contains an iframe to `assetrage.net`, which also uses the existing `_econfig` decoder. Follow the selected wrapper and derive media headers from assetrage's origin. |
 
 Provider names identify inspected formats, not guarantees that every player on
-those domains works. The iframe allowlist controls document traversal; extracted
-media URLs may use separate, rotating CDN hosts.
+those domains works. Iframes and media URLs may use rotating hosts; supported
+content formats determine whether the resolver can extract a stream.
 Before writing a new decoder, check whether an unrecognized host uses an existing
 format. Use the app's complete User-Agent when comparing HTTP requests: traitaunt
 returned 403 to a minimal `Mozilla/5.0` probe but accepted the app's User-Agent.

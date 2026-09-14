@@ -59,6 +59,6 @@ class ScheduleTests {
         assertEquals(listOf("Stream 1", "Stream 2"), options.map { it.label })
         assertEquals(listOf("https://player.test/one", "https://player.test/two"), options.map { it.url })
         assertEquals(listOf("https://player.test/embed"), PlayerPageParser.nextPages(
-            """<a href="/two">Stream 2</a><iframe src="/embed"></iframe>""", "https://player.test/one", false))
+            """<a href="/two">Stream 2</a><iframe src="/embed"></iframe>""", "https://player.test/one"))
     }
 }

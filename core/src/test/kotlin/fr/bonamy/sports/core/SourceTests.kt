@@ -43,12 +43,12 @@ class SourceTests {
 
     @Test fun `known dynamic embed is derived while ads are ignored`() {
         val next = PlayerPageParser.nextPages("""<script>fid="t1"</script><script src="//igniteandship.com/wiki.js"></script>
-            <iframe src="https://ads.test/player"></iframe>""", "https://wikisport.info/court/t1.php")
+            <iframe title="Advertisement" src="https://ads.test/player"></iframe>""", "https://wikisport.info/court/t1.php")
         assertEquals(listOf("https://igniteandship.com/wiki.php?player=desktop&live=t1"), next)
     }
 
-    @Test fun `alternate embed wins and nested frames are followed`() {
-        assertEquals(listOf("https://wikisport.info/two", "https://wikisport.info/one"),
+    @Test fun `numbered alternatives stay separate from selected embeds`() {
+        assertEquals(listOf("https://wikisport.info/one"),
             PlayerPageParser.nextPages("""<a href="/two">Stream 2</a><iframe src="/one"></iframe>""", "https://wikisport.info/"))
     }
 
@@ -185,7 +185,7 @@ class SourceTests {
             val media = "https://media.test/fr$index.m3u8"
             val pages = mapOf(
                 channel to """<iframe src="$wrapper"></iframe>""",
-                wrapper to """<a href="/other">Stream 2</a><iframe src="$gateway"></iframe>
+                wrapper to """<a href="/other">Stream 2</a><iframe src="$gateway" width="100%" height="550" allowfullscreen></iframe>
                     <iframe src="https://ads.test/player"></iframe>""",
                 gateway to """<iframe src="$player"></iframe><script src="https://ads.test/ad.js"></script>""",
                 player to encodedConfig("""{"stream_url":"https://p2p.test/fr.m3u8","stream_url_nop2p":"$media"}"""),

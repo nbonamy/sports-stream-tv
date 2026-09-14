@@ -3,6 +3,7 @@ package fr.bonamy.sports.core
 import kotlinx.coroutines.suspendCancellableCoroutine
 import okhttp3.*
 import java.io.IOException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -13,7 +14,26 @@ class SourceUnavailable(message: String) : IOException(message)
 class PageClient(private val client: OkHttpClient = OkHttpClient.Builder()
     .connectTimeout(10, TimeUnit.SECONDS).readTimeout(12, TimeUnit.SECONDS)
     .callTimeout(18, TimeUnit.SECONDS).build()) {
-    suspend fun get(url: String, headers: Map<String, String> = emptyMap()): Page = suspendCancellableCoroutine { continuation ->
+    private val playerClient by lazy {
+        client.newBuilder().followSslRedirects(false).dns(object : Dns {
+            override fun lookup(hostname: String) = client.dns.lookup(hostname).also { addresses ->
+                if (addresses.isEmpty() || addresses.any { !PlayerDestination.isPublic(it) })
+                    throw UnknownHostException("Player destination is not public")
+            }
+        }).addNetworkInterceptor { chain ->
+            if (!PlayerDestination.accepts(chain.request().url.toString())) throw SourceUnavailable("Invalid player destination.")
+            chain.proceed(chain.request())
+        }.build()
+    }
+
+    suspend fun get(url: String, headers: Map<String, String> = emptyMap()): Page = request(client, url, headers)
+
+    suspend fun getPlayerPage(url: String, headers: Map<String, String> = emptyMap()): Page {
+        if (!PlayerDestination.accepts(url)) throw SourceUnavailable("Invalid player destination.")
+        return request(playerClient, url, headers)
+    }
+
+    private suspend fun request(client: OkHttpClient, url: String, headers: Map<String, String>): Page = suspendCancellableCoroutine { continuation ->
         val request = Request.Builder().url(url).header("User-Agent", USER_AGENT)
             .apply { headers.forEach { (key, value) -> header(key, value) } }.build()
         val call = client.newCall(request)

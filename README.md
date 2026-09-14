@@ -69,8 +69,8 @@ in `signing.properties`. Keep both for future app updates; they are excluded fro
 make check  # Core and Android UI tests, lint, and debug build
 ```
 
-See [AGENTS.md](AGENTS.md) for the player architecture, source diagnostics, and
-how to add support for another player format.
+See [AGENTS.md](AGENTS.md) for automatic player discovery, supported player formats,
+source diagnostics, and how to add another decoder.
 
 Artwork prompts and asset preparation are in [docs/artwork](docs/artwork).
 The bundled Lato font is distributed under the [SIL Open Font License](licenses/Lato-OFL.txt).
