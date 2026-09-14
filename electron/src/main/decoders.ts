@@ -105,6 +105,28 @@ function stringArray(json: string): string {
 export function playlist(html: string): string | null {
   for (const decoded of [barecrop(html), indexed(html)])
     if (decoded && isHls(decoded)) return decoded;
+  // Bind a literal array to the player's exact index, never try other entries.
+  for (const match of html.matchAll(
+    /\b(?:source|file|src)\s*:\s*([A-Za-z_$][\w$]*)\s*\[\s*(\d{1,4})\s*\]\s*[,}]/g,
+  )) {
+    const declaration = new RegExp(
+      `\\b(?:var|let|const)\\s+${escaped(match[1])}\\s*=\\s*(\\[[^\\]]{0,65536}\\])\\s*;`,
+    ).exec(html);
+    if (!declaration) continue;
+    try {
+      const values: unknown = JSON.parse(declaration[1]);
+      if (
+        !Array.isArray(values) ||
+        values.length > 128 ||
+        values.some((value) => typeof value !== "string")
+      )
+        continue;
+      const value = values[Number(match[2])];
+      if (typeof value === "string" && isHls(value)) return value;
+    } catch {
+      // Only JSON string arrays are supported; provider expressions stay data.
+    }
+  }
   const expression =
     /return\s*\(\s*(\[\s*".*?\])\.join\(\s*""\s*\)(.*?)\)\s*;/s.exec(html);
   if (expression) {

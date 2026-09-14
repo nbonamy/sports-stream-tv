@@ -1,5 +1,7 @@
 import https from "node:https";
 import { lookup } from "node:dns";
+import { createUnzip, createBrotliDecompress } from "node:zlib";
+import { pipeline } from "node:stream";
 import ipaddr from "ipaddr.js";
 import { USER_AGENT } from "./provider";
 
@@ -88,20 +90,46 @@ export async function request(
           reject(new Error(`Provider HTTP ${status}`));
           return;
         }
+        // Some providers compress even when identity is requested.
+        const encoding = (res.headers["content-encoding"] ?? "identity")
+          .trim()
+          .toLowerCase();
+        const decoder =
+          encoding === "gzip" || encoding === "deflate"
+            ? createUnzip()
+            : encoding === "br"
+              ? createBrotliDecompress()
+              : null;
+        if (!decoder && encoding !== "identity" && encoding !== "") {
+          res.resume();
+          reject(new Error("Unsupported content encoding"));
+          return;
+        }
+        const body = decoder ?? res;
+        if (decoder) {
+          let wireSize = 0;
+          res.on("data", (chunk: Buffer) => {
+            wireSize += chunk.length;
+            if (wireSize > limit) res.destroy(new Error("Response too large"));
+          });
+          pipeline(res, decoder, (error) => {
+            if (error) reject(error);
+          });
+        }
         let size = 0;
         const chunks: Buffer[] = [];
-        res.on("data", (chunk: Buffer) => {
+        body.on("data", (chunk: Buffer) => {
           size += chunk.length;
           if (size > limit) {
-            res.destroy(new Error("Response too large"));
+            body.destroy(new Error("Response too large"));
             return;
           }
           chunks.push(chunk);
         });
-        res.on("end", () =>
+        body.on("end", () =>
           resolve({ url: url.href, data: Buffer.concat(chunks), status }),
         );
-        res.on("error", reject);
+        body.on("error", reject);
       },
     );
     const deadline = setTimeout(

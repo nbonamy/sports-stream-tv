@@ -257,3 +257,71 @@ test("LiveTV prioritizes FR US UK and ignores off-site channels", () => {
   assert.equal(result[0].channels.length, 1);
   assert.equal(result[2].name, "United Kingdom");
 });
+
+test("Giants stream 1 resolves its literal array source without selecting alternatives", async () => {
+  const selected = "https://freestreams-live1h.pk/new-york-giants-live-stream/";
+  const wrapper = "https://wikisport.info/nfl0/";
+  const stream1 = wrapper + "01.php";
+  const player = "https://in-stream.click/embed/giants";
+  const calls: string[] = [];
+  const bodies: Record<string, string> = {
+    [selected]: `<iframe src="${wrapper}" allowfullscreen></iframe>`,
+    [wrapper]: `<a href="01.php">Stream 1</a><a href="012.php">Stream 2</a><iframe src="01.php" allowfullscreen></iframe>`,
+    [stream1]: `<iframe src="${player}" allowfullscreen></iframe>`,
+    [player]: `const streamUrls = ["${media}", "https://other.test/alternative.m3u8"]; player.setup({file: streamUrls[0], autostart: false});`,
+    [media]: "#EXTM3U\n#EXTINF:8,\nsegment.ts",
+  };
+  const result = await resolve(
+    { label: "Stream 1", url: selected },
+    undefined,
+    async (url, headers) => {
+      calls.push(url);
+      assert.ok(bodies[url], "Unexpected request");
+      if (url === media)
+        assert.equal(headers?.Origin, "https://in-stream.click");
+      return { url, body: bodies[url] };
+    },
+  );
+  assert.equal(result.url, media);
+  assert.deepEqual(calls, [selected, wrapper, stream1, player, media]);
+});
+
+test("array source extraction binds the literal index and rejects unsupported data", () => {
+  for (const name of ["streamUrls", "rotated_$42"]) {
+    assert.equal(
+      playlist(
+        `const ${name} = ["https://other.test/other.m3u8", "${media}"]; player.setup({file: ${name}[1],});`,
+      ),
+      media,
+    );
+    for (const expression of [
+      `${name}[2]`,
+      `${name}[-1]`,
+      `${name}[getIndex()]`,
+      `${name}[0] + evil()`,
+    ])
+      assert.equal(
+        playlist(
+          `const ${name} = ["${media}"]; player.setup({file: ${expression},});`,
+        ),
+        null,
+      );
+  }
+  for (const data of [
+    '["http://insecure.test/live.m3u8"]',
+    '["https://127.0.0.1/live.m3u8"]',
+    '["https://cdn.test/live.mp4"]',
+    "[42]",
+    "[evil()]",
+    '["https://cdn.test/live.m3u8", null]',
+    '["https://cdn.test/live.m3u8"] + evil()',
+  ])
+    assert.equal(
+      playlist(`const urls = ${data}; player.setup({file: urls[0],});`),
+      null,
+    );
+  assert.equal(
+    playlist(`const urls = ["${media}"]; player.setup({file: other[0],});`),
+    null,
+  );
+});
