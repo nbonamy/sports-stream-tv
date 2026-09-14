@@ -3,6 +3,7 @@ package fr.bonamy.sports
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import fr.bonamy.sports.core.SportsRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -13,6 +14,10 @@ import java.net.URI
 
 /** Only the provider's league artwork is fetched; missing artwork leaves the row text intact. */
 internal object LeagueIcons {
+    private val allowedHosts = setOf(
+        URI(SportsRepository.BASE).host,
+        "cdn.livesoccertv.com", "a.espncdn.com", "static.flashscore.com",
+    )
     private val cache = object : LruCache<String, Bitmap>(2 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
@@ -21,7 +26,7 @@ internal object LeagueIcons {
     suspend fun load(url: String): Bitmap? {
         cache.get(url)?.let { return it }
         val uri = runCatching { URI(url) }.getOrNull() ?: return null
-        if (uri.scheme != "https" || uri.host !in setOf("cdn.livesoccertv.com", "a.espncdn.com", "static.flashscore.com", "freestreams-live1h.pk")) return null
+        if (uri.scheme != "https" || uri.host !in allowedHosts) return null
         return requests.withPermit {
             withContext(Dispatchers.IO) {
                 val connection = uri.toURL().openConnection() as HttpURLConnection
