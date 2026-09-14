@@ -167,6 +167,47 @@ class SourceTests {
         assertNull(PlayerPageParser.playlist(encodedConfig("{}")))
     }
 
+    @Test fun `encoded channel chains preserve selected source and player request context`() = runBlocking {
+        val cases = listOf(
+            listOf("canal-plus-fr/", "https://wikisport.info/play/canalfr1.php",
+                "https://quellefrappe.click/ty/1/11", "https://traitaunt.net/embed/canal"),
+            listOf("beinsp1-fr/", "https://freestreams-live1h.pk/beinfr1-s1/",
+                "https://quellefrappe.click/ty/1/1", "https://traitaunt.net/embed/bein1"),
+            listOf("beinsp2fr/", "https://freestreams-live1h.pk/beinfr2-s1/",
+                "https://quellefrappe.click/ty/1/2", "https://traitaunt.net/embed/bein2"),
+            listOf("hbotv/", "https://freestreams-live1h.pk/hbo-s1/",
+                "https://dlive.sx/stream/stream-321.php", "https://assetrage.net/e/hbo"),
+        )
+        for ((index, entry) in cases.withIndex()) {
+            val (path, wrapper, gateway, player) = entry
+            val channel = SportsRepository.BASE + path
+            val origin = java.net.URI(player).let { "${it.scheme}://${it.host}" }
+            val media = "https://media.test/fr$index.m3u8"
+            val pages = mapOf(
+                channel to """<iframe src="$wrapper"></iframe>""",
+                wrapper to """<a href="/other">Stream 2</a><iframe src="$gateway"></iframe>
+                    <iframe src="https://ads.test/player"></iframe>""",
+                gateway to """<iframe src="$player"></iframe><script src="https://ads.test/ad.js"></script>""",
+                player to encodedConfig("""{"stream_url":"https://p2p.test/fr.m3u8","stream_url_nop2p":"$media"}"""),
+                media to "#EXTM3U\n#EXTINF:6,\nsegment.ts",
+            )
+            val requests = mutableListOf<Request>()
+            val client = OkHttpClient.Builder().addInterceptor { chain ->
+                val request = chain.request(); requests += request
+                Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                    .body((pages[request.url.toString()] ?: error("Unexpected request")).toResponseBody()).build()
+            }.build()
+            val stream = StreamResolver(PageClient(client)).resolve(StreamLink("Stream 1", channel))
+            assertEquals(listOf(channel, wrapper, gateway, player, media), requests.map { it.url.toString() })
+            assertEquals(gateway, requests[3].header("Referer"))
+            assertEquals(PageClient.USER_AGENT, requests[3].header("User-Agent"))
+            assertEquals("$origin/", stream.headers["Referer"])
+            assertEquals(origin, stream.headers["Origin"])
+            assertEquals(stream.headers["Referer"], requests.last().header("Referer"))
+            assertEquals(media, stream.url)
+        }
+    }
+
     @Test fun `playback variable must be a literal and actually used as the source`() {
         assertNull(PlayerPageParser.playlist("""var playbackURL = "https://cdn.test/a.m3u8"; source: otherURL,"""))
         assertNull(PlayerPageParser.playlist("""var playbackURL = "https://cdn.test/a.m3u8" + getToken(); source: playbackURL,"""))

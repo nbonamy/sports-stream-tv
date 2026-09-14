@@ -82,7 +82,9 @@ object PlayerPageParser {
         return next.filter { candidate ->
             runCatching {
                 val uri = URI(candidate)
-                uri.scheme == "https" && (uri.host == URI(pageUrl).host || uri.host in setOf("wikisport.info", "igniteandship.com", "in-stream.click", "la18hd.su", "stream-xhd.com", "barecrop.net"))
+                uri.scheme == "https" && (uri.host == URI(pageUrl).host || uri.host in setOf(
+                    "wikisport.info", "igniteandship.com", "in-stream.click", "la18hd.su", "stream-xhd.com",
+                    "barecrop.net", "quellefrappe.click", "traitaunt.net", "dlive.sx", "assetrage.net"))
             }.getOrDefault(false)
         }.distinct()
     }

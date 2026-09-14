@@ -87,10 +87,15 @@ HTTP status codes, and exception classes. Remove temporary diagnostic logging.
 | la18hd / Win Sports | Clappr uses `source: playbackURL`, with the URL in a separate literal `var`/`let`/`const` declaration. Require both the source reference and literal declaration; an unused URL or executable concatenation is insufficient. |
 | stream-xhd / DirecTV | `IndexedPlaylistParser` reads shuffled `[index, base64]` pairs. Decode each value, keep its numeric character code, subtract the sum of two literal-return constants, and reconstruct by index. Validate the observed sort/decoding/source operations and reject duplicate indices or invalid characters. |
 | barecrop / Tennis stream 2 | `BarecropConfigParser` decodes `window._econfig`: outer base64 → four equal pieces → remove character at index 3 of each piece → base64-decode each → place pieces in destinations `[2, 0, 3, 1]` → concatenate → base64-decode → JSON. Prefer a nonblank `stream_url_nop2p`, otherwise `stream_url`. Ignore advertising and P2P settings. |
+| quellefrappe → traitaunt / French channels | Canal+ and beIN France's first streams traverse `quellefrappe.click` to `traitaunt.net`. Both document hosts must be recognized. traitaunt uses the same `_econfig` envelope as barecrop; reuse its decoder and derive media headers from traitaunt's origin. |
+| dlive → assetrage / HBO | `dlive.sx` contains an iframe to `assetrage.net`, which also uses the existing `_econfig` decoder. Follow the selected wrapper and derive media headers from assetrage's origin. |
 
 Provider names identify inspected formats, not guarantees that every player on
 those domains works. The iframe allowlist controls document traversal; extracted
 media URLs may use separate, rotating CDN hosts.
+Before writing a new decoder, check whether an unrecognized host uses an existing
+format. Use the app's complete User-Agent when comparing HTTP requests: traitaunt
+returned 403 to a minimal `Mozilla/5.0` probe but accepted the app's User-Agent.
 
 ## Lessons that matter
 
