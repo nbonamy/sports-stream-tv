@@ -11,6 +11,8 @@ and investigation. This document covers Electron's playback boundaries.
    selected iframe chain. `decoders.ts` interprets supported data formats.
 3. `http.ts` validates public HTTPS destinations, checks DNS during the actual
    connection lookup, follows bounded redirects, and limits request time and size.
+   It decodes gzip, deflate, and Brotli responses even when the provider ignores
+   `Accept-Encoding: identity`; both transferred and expanded bytes are bounded.
 4. `index.ts` keeps each resolved URL's headers in a short-lived playback session.
    The renderer receives the session token and fresh playlist URL.
 5. `media-loader.ts` feeds HLS.js with bytes requested through preload IPC. The main
@@ -36,7 +38,12 @@ playback interruptions use bounded recovery.
 - Each loader owns an ID for cancellation. Ignore results after aborting. Releasing
   a playback session aborts its outstanding media requests.
 
-`tests/media-loader.test.ts` exercises ordinary fragments, byte ranges, and HLS.js's
+Literal array sources such as `file: streamUrls[0]` resolve only the declared JSON
+string array at the player’s exact index. Expressions, invalid indices, and alternate
+entries are not fallback streams.
+
+`tests/http.test.ts` covers compressed responses, limits, malformed bodies, and
+cancellation. `tests/media-loader.test.ts` exercises ordinary fragments, byte ranges, and HLS.js's
 success/cleanup order. `tests/provider.test.ts` covers format recognition, rotating
 identifiers, iframe selection, exact stream resolution, headers, and bounded traversal.
 

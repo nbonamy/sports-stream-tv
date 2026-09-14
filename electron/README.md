@@ -45,8 +45,12 @@ settings stay local and are excluded from Git and the packaged app.
 ## Development
 
 ```sh
+npm run dev    # Vue hot reload; restart automatically for main/preload changes
 npm run check  # Type checking, tests, and production build
 ```
+
+The dev runner uses a local server and temporary app profile. Ctrl+C stops the
+app and its watchers.
 
 For non-working channels, read the shared [channel support guide](../docs/player.md)
 and [desktop playback notes](docs/player.md). Repository conventions are in
