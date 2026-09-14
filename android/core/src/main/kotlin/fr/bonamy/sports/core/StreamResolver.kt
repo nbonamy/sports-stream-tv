@@ -13,6 +13,21 @@ object PlayerPageParser {
     fun playlist(html: String): String? {
         BarecropConfigParser.playlist(html)?.takeIf { isHls(it) }?.let { return it }
         IndexedPlaylistParser.parse(html)?.takeIf { isHls(it) }?.let { return it }
+        // Bind a literal array to the exact index selected by the player. This is the
+        // player form used by in-stream; never fall back to a different array entry.
+        val indexedSource = Regex("""\b(?:source|file|src)\s*:\s*([A-Za-z_$][\w$]*)\s*\[\s*(\d{1,4})\s*]\s*[,}]""")
+        for (source in indexedSource.findAll(html)) {
+            val name = Regex.escape(source.groupValues[1])
+            val declaration = Regex("""\b(?:var|let|const)\s+$name\s*=\s*(\[[^]]{0,65536}])\s*;""")
+                .find(html)?.groupValues?.get(1) ?: continue
+            val selected = runCatching {
+                val values = JsonParser.parseString(declaration).asJsonArray
+                require(values.size() <= 128 && values.all { it.isJsonPrimitive && it.asJsonPrimitive.isString })
+                val index = source.groupValues[2].toInt()
+                if (index in 0 until values.size()) values[index].asString else null
+            }.getOrNull()
+            if (selected != null && isHls(selected)) return selected
+        }
         // Parse data only. Never evaluate JavaScript or load the provider's advertising scripts.
         val expression = Regex("""return\s*\(\s*(\[\s*".*?])\.join\(\s*""\s*\)(.*?)\)\s*;""", RegexOption.DOT_MATCHES_ALL)
             .find(html)
@@ -63,7 +78,7 @@ object PlayerPageParser {
 
     private fun isHls(value: String): Boolean = runCatching {
         val uri = URI(value)
-        uri.scheme == "https" && uri.host != null && uri.path.endsWith(".m3u8")
+        PlayerDestination.accepts(value) && uri.path.endsWith(".m3u8")
     }.getOrDefault(false)
 
     fun nextPages(html: String, pageUrl: String): List<String> {
@@ -71,7 +86,11 @@ object PlayerPageParser {
         val next = mutableListOf<String>()
         // This provider constructs its iframe from a channel ID and a known embed script.
         val wikiScript = doc.select("script[src]").firstOrNull {
-            runCatching { URI(it.absUrl("src")).let { uri -> uri.host == "igniteandship.com" && uri.path == "/wiki.js" } }.getOrDefault(false)
+            val raw = runCatching { URI(it.attr("src")) }.getOrNull() ?: return@firstOrNull false
+            val source = it.absUrl("src")
+            raw.userInfo == null && PlayerDestination.accepts(source) && runCatching {
+                URI(source).let { uri -> uri.host == "igniteandship.com" && uri.path == "/wiki.js" }
+            }.getOrDefault(false)
         }
         val channel = Regex("""\bfid\s*=\s*['"]([a-zA-Z0-9_-]+)['"]""").find(html)?.groupValues?.get(1)
         if (wikiScript != null && channel != null) next += "https://igniteandship.com/wiki.php?player=desktop&live=$channel"

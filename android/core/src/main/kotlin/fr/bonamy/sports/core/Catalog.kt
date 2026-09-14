@@ -56,7 +56,8 @@ object CatalogParser {
                     val links = links(section, pageUrl)
                     if (links.isEmpty()) return@forEach
                     val rawTime = Regex("\\d{1,2}:\\d{2}\\s*[AP]M\\s*ET", RegexOption.IGNORE_CASE).find(section.text())?.value.orEmpty()
-                    val time = runCatching { LocalTime.parse(rawTime.removeSuffix(" ET"), DateTimeFormatter.ofPattern("h:mm a", Locale.US)) }.getOrNull()
+                    val localTime = rawTime.replace(Regex("(?i)\\s*ET$"), "").uppercase(Locale.US)
+                    val time = runCatching { LocalTime.parse(localTime, DateTimeFormatter.ofPattern("h:mm a", Locale.US)) }.getOrNull()
                     val start = if (date != null && time != null) date!!.atTime(time).atZone(ZoneId.of("America/New_York")).toInstant().toEpochMilli() else null
                     events += SportsEvent(element.text(), heading, rawTime, start, links)
                 }
@@ -85,7 +86,8 @@ object CatalogParser {
                             if (previousMinutes?.let { it - minutes > 12 * 60 } == true) dayOffset++
                             previousMinutes = minutes
                         }
-                        val timestamp = row.attr("data-timestamp").toLongOrNull()?.let { if (it < 100_000_000_000L) it * 1000 else it }
+                        val timestamp = row.attr("data-timestamp").toLongOrNull()?.takeIf { it > 0 }
+                            ?.let { if (it < 100_000_000_000L) it * 1000 else it }
                             ?: if (date != null && time != null) date!!.plusDays(dayOffset).atTime(time).toInstant(sourceZone).toEpochMilli() else null
                         events += SportsEvent(title, competition,
                             if (timestamp == null && rawTime.isNotBlank()) "$rawTime · source time (UTC+1)" else "",
@@ -99,8 +101,10 @@ object CatalogParser {
     }
 
     private fun links(element: Element, pageUrl: String) = element.select("a[href]").mapNotNull { a ->
+        val source = runCatching { URI(a.attr("href")) }.getOrNull() ?: return@mapNotNull null
         val uri = runCatching { URI(a.absUrl("href")) }.getOrNull() ?: return@mapNotNull null
-        if (uri.host != URI(pageUrl).host || uri.scheme !in listOf("http", "https") || uri.fragment != null) return@mapNotNull null
+        if (uri.host != URI(pageUrl).host || uri.scheme !in listOf("http", "https") ||
+            uri.fragment != null || uri.userInfo != null || source.userInfo != null) return@mapNotNull null
         StreamLink(a.text().ifBlank { "Watch" }, uri.toString().replaceFirst("http://", "https://"))
     }.distinctBy { it.url }
 

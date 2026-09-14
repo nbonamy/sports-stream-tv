@@ -35,6 +35,7 @@ const cache = ref<Record<string, SportsEvent[]>>({});
 const countries = ref<Country[]>([]);
 const loading = ref(false);
 const failed = ref(false);
+const notice = ref("");
 const now = ref(Date.now());
 let loadGeneration = 0;
 const crumb = computed(() => {
@@ -123,6 +124,7 @@ async function fetchRoute(refresh = false) {
   const r = route.value;
   const generation = ++loadGeneration;
   failed.value = false;
+  notice.value = "";
   loading.value = false;
   if (r.type === "schedule" && (refresh || !cache.value[r.sport!.id])) {
     loading.value = true;
@@ -130,13 +132,29 @@ async function fetchRoute(refresh = false) {
       const data = await api.events(r.sport!.id);
       if (generation === loadGeneration) cache.value[r.sport!.id] = data;
     } catch {
-      if (generation === loadGeneration) failed.value = true;
+      if (generation === loadGeneration) {
+        if (cache.value[r.sport!.id])
+          notice.value = "Couldn’t refresh · showing the previous schedule";
+        else failed.value = true;
+      }
     }
-  } else if (r.type === "countries" && (refresh || !countries.value.length)) {
+  } else if (
+    (r.type === "countries" || r.type === "country") &&
+    (refresh || !countries.value.length)
+  ) {
     loading.value = true;
     try {
       const data = await api.countries();
-      if (generation === loadGeneration) countries.value = data;
+      if (generation === loadGeneration) {
+        countries.value = data;
+        if (r.type === "country") {
+          const current = data.find(
+            (country) => country.code === r.country?.code,
+          );
+          if (current) r.country = current;
+          else history.value[history.value.length - 1] = { type: "countries" };
+        }
+      }
     } catch {
       if (generation === loadGeneration) failed.value = true;
     }
@@ -161,10 +179,6 @@ function play(channel: Channel) {
     scroll: 0,
   });
 }
-const flag = (code: string) =>
-  [...(code === "UK" ? "GB" : code)]
-    .map((c) => String.fromCodePoint(127397 + c.charCodeAt(0)))
-    .join("");
 function keyboard(e: KeyboardEvent) {
   if (route.value.type === "player" || e.metaKey || e.ctrlKey || e.altKey)
     return;
@@ -222,6 +236,9 @@ onUnmounted(() => {
     v-if="route.type === 'player'"
     :channel="route.channel!"
     :title="route.event?.title ?? route.channel!.name"
+    :subtitle="
+      route.country ? `LiveTV · ${route.country.code}` : route.channel!.name
+    "
     @back="back"
   />
   <div v-else class="browse">
@@ -230,6 +247,7 @@ onUnmounted(() => {
         v-if="history.length > 1"
         class="back plain"
         aria-label="Back"
+        tabindex="-1"
         @click="back"
       >
         <Chevron />
@@ -286,6 +304,7 @@ onUnmounted(() => {
           <button class="quiet" @click="fetchRoute(true)">Retry</button>
         </div>
         <div v-else class="schedule">
+          <p v-if="notice" class="notice">{{ notice }}</p>
           <section
             v-for="group in schedule"
             :key="group.label"
@@ -371,7 +390,6 @@ onUnmounted(() => {
             <p>{{ route.country ? "Choose a channel" : "Choose a country" }}</p>
           </div>
           <button
-            v-if="route.type === 'countries'"
             class="quiet refresh"
             @click="fetchRoute(true)"
             :disabled="loading"
@@ -402,9 +420,8 @@ onUnmounted(() => {
             class="country-tile"
             @click="navigate({ type: 'country', country: c })"
           >
-            <span class="flag">{{ flag(c.code) }}</span
-            ><strong>{{ c.name }}</strong
-            ><small>{{ c.channels.length }} channels</small>
+            <span class="country-code">{{ c.code }}</span
+            ><strong>{{ c.name }}</strong>
           </button>
         </div>
         <div v-else class="channel-list">

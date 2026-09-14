@@ -10,6 +10,8 @@ only appear when an alternative exists in that direction. Back returns to channe
 Resolution failures (`SourceUnavailable`) go directly to the error state; Media3
 interruptions have bounded retries at 3/6/9 seconds. Retry requests a fresh resolution.
 Malformed iframe URLs such as `https:///wiki.php` are rejected promptly.
+The retry budget resets after 30 seconds of continuous playback. Signed-URL renewal
+keeps a paused stream paused, and an ended stream goes to Retry.
 
 After a rendered frame, buffering and same-stream retries use a translucent backdrop.
 Initial loading and explicit stream changes use an opaque backdrop. `PlayerView`

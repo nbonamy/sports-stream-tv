@@ -53,7 +53,12 @@ function headingDate(text: string, now: number): Date | null {
     "NOVEMBER",
     "DECEMBER",
   ].indexOf(match[1].toUpperCase());
-  const year = new Date(now).getUTCFullYear();
+  const year = Number(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "Etc/GMT-1",
+      year: "numeric",
+    }).format(now),
+  );
   const years = match[3] ? [+match[3]] : [year - 1, year, year + 1];
   return (
     years

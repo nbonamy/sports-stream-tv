@@ -14,6 +14,11 @@ on the product and platform entry points; each platform owns its setup and usage
   the last available video frame. Show stream arrows only when that direction is available.
 - Keep signed URLs, cookies, tokens, signing keys, and captured provider HTML out of
   the repository and logs.
+- Treat Android TV and the shared TypeScript core as one player contract. For every
+  parsing, discovery, decoder, header, selection, renewal, or recovery change, update
+  both implementations and mirror the regression fixture when that code is duplicated.
+- Bring user-visible platform differences to Nicolas for review before implementing
+  them. Platform controls may differ where the device requires it.
 
 The provider base URL has one source: `config/provider.json`. Android generates its
 Kotlin constant from this file; the shared TypeScript core imports it at build time.

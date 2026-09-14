@@ -23,7 +23,9 @@ and investigation. This document covers Electron's playback boundaries.
 or leaving the player cancels obsolete resolution and releases its media session.
 Reconnection keeps a bounded snapshot in memory, and URL renewal uses the provider's
 `expires` value when present. Initial resolution failures go straight to Retry;
-playback interruptions use bounded recovery.
+playback interruptions use bounded recovery. The retry budget resets after 30 seconds
+of continuous playback, renewal keeps paused playback paused, and an ended stream goes
+to Retry.
 
 Escape uses the native window's fullscreen state: the first press exits fullscreen
 while preserving playback; a press in windowed mode returns to channels. Held-key
@@ -49,10 +51,6 @@ sections. A page with no recognizable listings still reports a load failure.
   Emitting `onAbort` during successful cleanup rejects an already-downloaded fragment.
 - Each loader owns an ID for cancellation. Ignore results after aborting. Releasing
   a playback session aborts its outstanding media requests.
-
-Literal array sources such as `file: streamUrls[0]` resolve only the declared JSON
-string array at the player’s exact index. Expressions, invalid indices, and alternate
-entries are not fallback streams.
 
 `tests/http.test.ts` covers compressed responses, limits, malformed bodies, and
 cancellation. `packages/ui/tests/media-loader.test.ts` exercises ordinary fragments, byte ranges, and HLS.js's

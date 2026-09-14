@@ -31,11 +31,12 @@ export function nextPages(html: string, pageUrl: string): string[] {
   const candidates: { url: string; score: number }[] = [];
   const wiki = $("script[src]")
     .toArray()
-    .some(
-      (e) =>
-        absolute($(e).attr("src"), pageUrl) ===
-        "https://igniteandship.com/wiki.js",
-    );
+    .some((e) => {
+      const source = absolute($(e).attr("src"), pageUrl);
+      if (!accepted(source)) return false;
+      const url = new URL(source);
+      return url.hostname === "igniteandship.com" && url.pathname === "/wiki.js";
+    });
   const fid = /\bfid\s*=\s*['"]([a-zA-Z0-9_-]+)['"]/.exec(html)?.[1];
   if (wiki && fid)
     candidates.push({

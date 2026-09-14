@@ -318,12 +318,16 @@ h2 small {
 .country-tile strong {
   font-size: 23px;
 }
-.country-tile small {
+.country-code {
+  color: var(--accent);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.notice {
   color: var(--muted);
   font-size: 15px;
-}
-.flag {
-  font-size: 50px;
+  margin: 0 0 16px;
 }
 .empty {
   display: flex;
@@ -831,8 +835,8 @@ html[data-platform="mobile"] .plain {
   .country-tile strong {
     font-size: 18px;
   }
-  .country-tile small {
-    font-size: 13px;
+  .country-code {
+    font-size: 28px;
   }
   .player-top {
     gap: 12px;

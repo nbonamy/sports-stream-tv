@@ -531,7 +531,7 @@ class MainActivity : ComponentActivity() {
         playerChrome?.showConnecting(overVideo = hasVideoFrame)
     }
 
-    private fun resolveAndPlay(retainVideo: Boolean = false) {
+    private fun resolveAndPlay(retainVideo: Boolean = false, preservePause: Boolean = false) {
         val link = streamOptions.getOrNull(streamIndex) ?: return
         resolveJob?.cancel(); renewalJob?.cancel(); recoveryJob?.cancel(); stableJob?.cancel()
         awaitingVideoFrame = true
@@ -580,11 +580,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
-                activePlayer.setMediaSource(media); activePlayer.prepare(); activePlayer.playWhenReady = true
+                activePlayer.setMediaSource(media); activePlayer.prepare(); activePlayer.playWhenReady = !preservePause
                 stream.expiresAtMillis?.let { expires ->
                     renewalJob = lifecycleScope.launch {
                         delay((expires - System.currentTimeMillis() - 60_000).coerceIn(15_000, 21_600_000))
-                        resolveAndPlay(retainVideo = true)
+                        resolveAndPlay(retainVideo = true, preservePause = !activePlayer.playWhenReady)
                     }
                 }
             } catch (e: CancellationException) { throw e }

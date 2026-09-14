@@ -16,9 +16,10 @@ object LiveTvParser {
             if (!Regex("[A-Z]{2}").matches(code)) return@mapNotNull null
             val channels = group.select(".dropdown-content a[href]").mapNotNull { link ->
                 val name = link.text().trim()
+                val source = runCatching { URI(link.attr("href")) }.getOrNull() ?: return@mapNotNull null
                 val uri = runCatching { URI(link.absUrl("href")) }.getOrNull() ?: return@mapNotNull null
                 if (name.isBlank() || uri.host != host || uri.scheme !in listOf("http", "https") ||
-                    uri.fragment != null || uri.userInfo != null) return@mapNotNull null
+                    uri.fragment != null || uri.userInfo != null || source.userInfo != null) return@mapNotNull null
                 Channel(name, listOf(StreamLink(name, uri.toString().replaceFirst("http://", "https://"))))
             }.distinctBy { it.id }
             channels.takeIf { it.isNotEmpty() }?.let { TvCountry(code, it) }

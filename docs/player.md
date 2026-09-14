@@ -4,8 +4,8 @@ Sports reads channel listings from FSL, discovers the selected embedded player,
 extracts its HLS configuration, and passes it to the platform player. Support depends
 on the configuration format in the page; iframe and CDN hostnames can change.
 
-The code map below names the Kotlin implementation under `android/`. Electron's
-TypeScript parsers and fixtures live under `electron/src/main/` and `electron/tests/`.
+The code map below names the Kotlin implementation under `android/`. Electron and
+mobile share the TypeScript implementation under `packages/core/`.
 Platform behavior and additional support details are documented in
 [Android playback](../android/docs/player.md) and [Desktop playback](../electron/docs/player.md).
 
@@ -54,10 +54,12 @@ exception classes; redact signed URLs, query tokens, cookies, and credentials.
 
 ## Add or repair support
 
-1. **Create a failing fixture.** Intercept `PageClient` requests as in
+1. **Create failing fixtures in both cores.** Intercept `PageClient` requests as in
    [SourceTests.kt](../android/core/src/test/kotlin/fr/bonamy/sports/core/SourceTests.kt).
    Supply sanitized wrapper HTML, configuration data, and a manifest. Assert the
-   selected stream's request sequence and headers. Confirm it fails on the current code.
+   selected stream's request sequence and headers. Mirror it in
+   `packages/core/tests/provider.test.ts` so Android TV, Electron, and mobile enforce
+   the same selection. Confirm both fixtures fail on the current code.
 2. **Change the narrowest component.** Reuse a decoder when the format is already
    supported. Adjust iframe discovery for a missing HTML shape. For a dynamically
    constructed iframe, derive its URL only after inspecting its construction.
@@ -138,6 +140,14 @@ an `expires` query parameter and the app schedules renewal from it. Additional
 expiry formats need explicit parsing and fixtures. Preserve coroutine cancellation
 so a previous channel's resolution cannot replace the current selection.
 
+### Playback contract
+
+All platforms start stream 1 while discovering alternatives and preserve the selected
+channel and stream. Playback interruptions retry after 3, 6, and 9 seconds; a stream
+must play continuously for 30 seconds before that retry budget resets. Signed-URL
+renewal keeps a paused stream paused. An ended stream goes to Retry. Reconnecting and
+errors retain the last video frame under a translucent overlay when one exists.
+
 ## Supported configuration formats
 
 These shapes determine decoder support. Provider names are examples of those shapes,
@@ -147,6 +157,7 @@ not an allowlist or a guarantee that every stream on a domain works.
 | --- | --- |
 | Direct HLS value | Quoted `source`, `file`, or `src`; unescape slashes/entities and validate HTTPS with a `.m3u8` path. |
 | Literal source variable | `source: variableName` plus its literal `var`/`let`/`const` URL declaration. Require both; an unused URL or executable concatenation is insufficient. Used by la18hd/Win Sports. |
+| Indexed literal array | `source`, `file`, or `src` selects one exact index from a declared JSON string array. Require a literal index and use only that entry; never try alternatives. Used by in-stream/Giants. |
 | Joined string arrays | Inspected `return([...].join("") + ...)` expression. Supported suffixes are declared string-array joins and a named DOM element's contents. Reject unknown expressions. |
 | Indexed character encoding | `IndexedPlaylistParser` reads shuffled `[index, base64]` pairs. Decode each value, keep its numeric character code, subtract the sum of two literal-return constants, then reconstruct by index. Validate the sort/decoding/source operations; reject duplicate indices and invalid characters. Used by stream-xhd/DirecTV. |
 | `_econfig` envelope | `BarecropConfigParser` reads `window._econfig`: outer base64 → four equal pieces → remove character at index 3 of each → base64-decode each → place at destinations `[2, 0, 3, 1]` → concatenate → base64-decode → JSON. Prefer nonblank `stream_url_nop2p`, otherwise `stream_url`; ignore advertising and P2P settings. Used by barecrop, traitaunt, and assetrage. |

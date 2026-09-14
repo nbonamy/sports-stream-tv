@@ -64,9 +64,14 @@ class SourceTests {
     }
 
     @Test fun `known dynamic embed is derived while ads are ignored`() {
-        val next = PlayerPageParser.nextPages("""<script>fid="t1"</script><script src="//igniteandship.com/wiki.js"></script>
-            <iframe title="Advertisement" src="https://ads.test/player"></iframe>""", "https://wikisport.info/court/t1.php")
-        assertEquals(listOf("https://igniteandship.com/wiki.php?player=desktop&live=t1"), next)
+        for (script in listOf("//igniteandship.com/wiki.js", "https://igniteandship.com/wiki.js?v=2")) {
+            val next = PlayerPageParser.nextPages("""<script>fid="t1"</script><script src="$script"></script>
+                <iframe title="Advertisement" src="https://ads.test/player"></iframe>""", "https://wikisport.info/court/t1.php")
+            assertEquals(listOf("https://igniteandship.com/wiki.php?player=desktop&live=t1"), next)
+        }
+        assertTrue(PlayerPageParser.nextPages(
+            """<script>fid="t1"</script><script src="https://user:pw@igniteandship.com/wiki.js"></script>""",
+            "https://wikisport.info/court/t1.php").isEmpty())
     }
 
     @Test fun `numbered alternatives stay separate from selected embeds`() {
@@ -233,6 +238,52 @@ class SourceTests {
     @Test fun `playback variable must be a literal and actually used as the source`() {
         assertNull(PlayerPageParser.playlist("""var playbackURL = "https://cdn.test/a.m3u8"; source: otherURL,"""))
         assertNull(PlayerPageParser.playlist("""var playbackURL = "https://cdn.test/a.m3u8" + getToken(); source: playbackURL,"""))
+    }
+
+    @Test fun `literal array source uses only the player selected index`() {
+        val media = "https://media.test/live/channel.m3u8"
+        for (name in listOf("streamUrls", "rotated_\$42")) {
+            assertEquals(media, PlayerPageParser.playlist(
+                """const $name = ["https://other.test/other.m3u8", "$media"]; player.setup({file: $name[1],});"""))
+            for (expression in listOf("$name[2]", "$name[-1]", "$name[getIndex()]", "$name[0] + evil()")) {
+                assertNull(PlayerPageParser.playlist(
+                    """const $name = ["$media"]; player.setup({file: $expression,});"""))
+            }
+        }
+        for (data in listOf(
+            "[\"http://insecure.test/live.m3u8\"]",
+            "[\"https://127.0.0.1/live.m3u8\"]",
+            "[\"https://cdn.test/live.mp4\"]",
+            "[42]", "[evil()]", "[\"$media\", null]", "[\"$media\"] + evil()",
+        )) assertNull(PlayerPageParser.playlist("""const urls = $data; player.setup({file: urls[0],});"""))
+        assertNull(PlayerPageParser.playlist(
+            """const urls = ["$media"]; player.setup({file: other[0],});"""))
+    }
+
+    @Test fun `giants stream one resolves its selected literal array source`() = runBlocking {
+        val selected = "https://freestreams-live1h.pk/new-york-giants-live-stream/"
+        val wrapper = "https://wikisport.info/nfl0/"
+        val stream1 = wrapper + "01.php"
+        val player = "https://in-stream.click/embed/giants"
+        val media = "https://media.test/live/giants.m3u8"
+        val pages = mapOf(
+            selected to """<iframe src="$wrapper" allowfullscreen></iframe>""",
+            wrapper to """<a href="01.php">Stream 1</a><a href="012.php">Stream 2</a><iframe src="01.php" allowfullscreen></iframe>""",
+            stream1 to """<iframe src="$player" allowfullscreen></iframe>""",
+            player to """const streamUrls = ["$media", "https://other.test/alternative.m3u8"];
+                player.setup({file: streamUrls[0], autostart: false});""",
+            media to "#EXTM3U\n#EXTINF:8,\nsegment.ts",
+        )
+        val requests = mutableListOf<Request>()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request(); requests += request
+            Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                .body((pages[request.url.toString()] ?: error("Unexpected request")).toResponseBody()).build()
+        }.build()
+        val result = StreamResolver(PageClient(client)).resolve(StreamLink("Stream 1", selected))
+        assertEquals(media, result.url)
+        assertEquals(listOf(selected, wrapper, stream1, player, media), requests.map { it.url.toString() })
+        assertEquals("https://in-stream.click", result.headers["Origin"])
     }
 
     @Test fun `HTTP headers are applied and errors do not become valid pages`() = runBlocking<Unit> {

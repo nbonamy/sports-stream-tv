@@ -116,6 +116,20 @@ test("discovery ranks player evidence and excludes hidden ads, without a host li
     ["https://igniteandship.com/wiki.php?player=desktop&live=tennis_1"],
   );
   assert.deepEqual(
+    nextPages(
+      '<script src="https://igniteandship.com/wiki.js?v=2"></script><script>fid="tennis_1"</script>',
+      PROVIDER_BASE,
+    ),
+    ["https://igniteandship.com/wiki.php?player=desktop&live=tennis_1"],
+  );
+  assert.deepEqual(
+    nextPages(
+      '<script src="https://user:pw@igniteandship.com/wiki.js"></script><script>fid="tennis_1"</script>',
+      PROVIDER_BASE,
+    ),
+    [],
+  );
+  assert.deepEqual(
     nextPages('<iframe src="https:///wiki.php"></iframe>', PROVIDER_BASE),
     [],
   );
@@ -160,6 +174,100 @@ test("selected stream 2 resolves only its embeds, preserving final-player header
   assert.equal(calls[1].headers.Referer, selected);
   assert.deepEqual(calls[2].headers, result.headers);
   assert.equal(result.expiresAt, 2000000000000);
+});
+test("Win Sports resolves the literal playback variable through its selected embed", async () => {
+  const channel = PROVIDER_BASE + "winsports/";
+  const player = "https://la18hd.su/vivo/canales.php?stream=win";
+  const selectedMedia = "https://media.test/live/win.m3u8";
+  const calls: { url: string; headers: Record<string, string> }[] = [];
+  const bodies: Record<string, string> = {
+    [channel]: `<iframe src="${player}"></iframe><iframe src="https://ads.test/ad"></iframe>`,
+    [player]: `var playbackURL = "${selectedMedia}"; new Clappr.Player({source: playbackURL});`,
+    [selectedMedia]: "#EXTM3U\n#EXTINF:6,\nsegment.ts",
+  };
+  const result = await resolve(
+    { label: "Stream 1", url: channel },
+    undefined,
+    async (url, headers = {}) => {
+      calls.push({ url, headers });
+      assert.ok(bodies[url], "Unexpected request");
+      return { url, body: bodies[url] };
+    },
+  );
+  assert.deepEqual(
+    calls.map((call) => call.url),
+    [channel, player, selectedMedia],
+  );
+  assert.equal(calls[1].headers.Referer, channel);
+  assert.deepEqual(result.headers, {
+    Referer: "https://la18hd.su/",
+    Origin: "https://la18hd.su",
+    "User-Agent": USER_AGENT,
+  });
+});
+test("DirecTV resolves its indexed player without executing the script", async () => {
+  const channel = PROVIDER_BASE + "directv-sports/";
+  const player = "https://stream-xhd.com/live2.php?channel=directv";
+  const selectedMedia =
+    "https://media.test/live/directv.m3u8?expires=1999999999";
+  const calls: string[] = [];
+  const bodies: Record<string, string> = {
+    [channel]: `<iframe src="${player}"></iframe>`,
+    [player]: indexedHtml("rotated_$42", selectedMedia),
+    [selectedMedia]: "#EXTM3U\n#EXTINF:6,\nsegment.ts",
+  };
+  const result = await resolve(
+    { label: "Stream 1", url: channel },
+    undefined,
+    async (url) => {
+      calls.push(url);
+      assert.ok(bodies[url], "Unexpected request");
+      return { url, body: bodies[url] };
+    },
+  );
+  assert.deepEqual(calls, [channel, player, selectedMedia]);
+  assert.equal(result.headers.Referer, "https://stream-xhd.com/");
+  assert.equal(result.expiresAt, 1999999999000);
+});
+test("Tennis stream 2 resolves only stream 2 through the econfig player", async () => {
+  const channel = PROVIDER_BASE + "tennis-channel/";
+  const wrapper = "https://wikisport.info/court/ten20.php";
+  const second = "https://wikisport.info/court/ten201.php";
+  const frame = "https://wikisport.info/court/wik20.php";
+  const player = "https://barecrop.net/player/wik20";
+  const selectedMedia = "https://media.test/tennis.m3u8";
+  const bodies: Record<string, string> = {
+    [channel]: `<iframe src="${wrapper}"></iframe>`,
+    [wrapper]: `<a href="${wrapper}">Stream 1</a><a href="${second}">Stream 2</a>`,
+    [second]: `<iframe src="${frame}"></iframe>`,
+    [frame]: `<iframe src="${player}"></iframe>`,
+    [player]: envelope({
+      stream_url: "https://p2p.test/tennis.m3u8",
+      stream_url_nop2p: selectedMedia,
+    }),
+    [selectedMedia]: "#EXTM3U\n#EXTINF:6,\nsegment.ts",
+  };
+  const options = await discover(
+    { name: "Tennis Channel", links: [{ label: "Stream 1", url: channel }] },
+    undefined,
+    async (url) => {
+      assert.ok(bodies[url], "Unexpected discovery request");
+      return { url, body: bodies[url] };
+    },
+  );
+  assert.deepEqual(
+    options.map((option) => option.url),
+    [wrapper, second],
+  );
+  const calls: string[] = [];
+  const result = await resolve(options[1], undefined, async (url) => {
+    calls.push(url);
+    assert.ok(bodies[url], "Unexpected resolution request");
+    return { url, body: bodies[url] };
+  });
+  assert.deepEqual(calls, [second, frame, player, selectedMedia]);
+  assert.equal(result.url, selectedMedia);
+  assert.equal(result.headers.Referer, "https://barecrop.net/");
 });
 test("discovery returns options without touching signed playlists", async () => {
   const result = await discover(
@@ -242,11 +350,24 @@ test("schedule parsing preserves timestamps, league art and channel labels", () 
   );
   assert.equal(countdown(89 * 60_000, 0), "in 1h29");
 });
+test("American schedule times accept provider casing and spacing", () => {
+  for (const time of ["7:30 PM ET", "7:30 pm et", "7:30 PM   ET"]) {
+    const html = `<h2>SEPTEMBER 14, 2026</h2><section class="elementor-top-section"><div class="teamz">A vs B</div><span>${time}</span><a href="/watch">Watch</a></section>`;
+    assert.notEqual(parseCatalog(html, PROVIDER_BASE)[0].startsAt, null);
+  }
+});
+test("catalog links reject credentials and fragments", () => {
+  const html = `<h2>SEPTEMBER 14, 2026</h2><table><tr><td class="matchtime">12:00</td><td class="event-title">A vs B</td><td><a href="https://user:pw@freestreams-live1h.pk/private">Credentials</a><a href="/valid#chat">Fragment</a><a href="/valid">Watch</a></td></tr></table>`;
+  assert.deepEqual(
+    parseCatalog(html, PROVIDER_BASE)[0].links.map((link) => link.url),
+    [PROVIDER_BASE + "valid"],
+  );
+});
 test("LiveTV prioritizes FR US UK and ignores off-site channels", () => {
   const html = ["DE", "UK", "US", "FR"]
     .map(
       (code) =>
-        `<div class="dropdown"><button class="dropbtn">${code}</button><div class="dropdown-content"><a href="/${code}/">${code} TV</a><a href="https://ads.test/">Ad</a></div></div>`,
+        `<div class="dropdown"><button class="dropbtn">${code}</button><div class="dropdown-content"><a href="/${code}/">${code} TV</a><a href="https://ads.test/">Ad</a><a href="https://user:pw@freestreams-live1h.pk/private">Credentials</a></div></div>`,
     )
     .join("");
   const result = parseCountries(html, PROVIDER_BASE);

@@ -25,6 +25,7 @@ class LiveTvTests {
     @Test fun `directory excludes unrelated links and deduplicates only within each country`() {
         val links = """<a href="http://example.test/tennis/">Tennis Channel</a>
             <a href="/tennis/">Duplicate</a><a href="https://ads.test/ad">Ad</a>
+            <a href="https://user:pw@example.test/private">Credentials</a>
             <a href="javascript:alert(1)">Script</a><a href="#chat">Chat</a><a href="/empty"> </a>"""
         val countries = LiveTvParser.parse("""<a href="/menu">Menu</a>""" + group("UK", links) +
             group("FR", links) + group("UK", """<a href="/news/">News</a>""") +

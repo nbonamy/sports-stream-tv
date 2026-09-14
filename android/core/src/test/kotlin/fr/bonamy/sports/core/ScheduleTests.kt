@@ -45,6 +45,14 @@ class ScheduleTests {
         assertEquals("FOX", parsed.last().channels.single().name)
     }
 
+    @Test fun `american event times accept provider casing and spacing`() {
+        for (time in listOf("7:30 PM ET", "7:30 pm et", "7:30 PM   ET")) {
+            val html = """<h2>SEPTEMBER 14, 2026</h2><section class="elementor-top-section">
+                <div class="teamz">A vs B</div><span>$time</span><a href="/watch">Watch</a></section>"""
+            assertNotNull(CatalogParser.parse(html, "https://example.test/").single().startsAt)
+        }
+    }
+
     @Test fun `date headings preserve stale dates and cross year boundaries`() {
         fun parse(heading: String, reference: String) = CatalogParser.parse("""<h2>$heading</h2><table><tr>
             <td class="matchtime">01:00</td><td class="event-title">A vs B</td><td><a href="/watch">Watch</a></td></tr></table>""",
@@ -60,5 +68,13 @@ class ScheduleTests {
         assertEquals(listOf("https://player.test/one", "https://player.test/two"), options.map { it.url })
         assertEquals(listOf("https://player.test/embed"), PlayerPageParser.nextPages(
             """<a href="/two">Stream 2</a><iframe src="/embed"></iframe>""", "https://player.test/one"))
+    }
+
+    @Test fun `catalog links reject credentials and fragments`() {
+        val html = """<h2>SEPTEMBER 14, 2026</h2><table><tr><td class="matchtime">12:00</td>
+            <td class="event-title">A vs B</td><td><a href="https://user:pw@example.test/private">Credentials</a>
+            <a href="/valid#chat">Fragment</a><a href="/valid">Watch</a></td></tr></table>"""
+        assertEquals(listOf("https://example.test/valid"),
+            CatalogParser.parse(html, "https://example.test/").single().links.map { it.url })
     }
 }

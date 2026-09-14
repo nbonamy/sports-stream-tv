@@ -8,7 +8,7 @@ import Chevron from "./Chevron.vue";
 import Orbit from "./Orbit.vue";
 
 const api = useSports();
-const props = defineProps<{ channel: Channel; title: string }>();
+const props = defineProps<{ channel: Channel; title: string; subtitle: string }>();
 const emit = defineEmits<{ back: [] }>();
 const video = ref<HTMLVideoElement>();
 const player = ref<HTMLElement>();
@@ -37,7 +37,8 @@ const discoveryId = crypto.randomUUID();
 let hideTimer: ReturnType<typeof setTimeout>,
   retryTimer: ReturnType<typeof setTimeout>,
   renewalTimer: ReturnType<typeof setTimeout>,
-  stallTimer: ReturnType<typeof setTimeout>;
+  stallTimer: ReturnType<typeof setTimeout>,
+  stableTimer: ReturnType<typeof setTimeout>;
 const hasPicture = computed(() => frame.value || !!snapshot.value);
 function reveal() {
   visible.value = true;
@@ -74,6 +75,7 @@ async function connect(retain = false, preservePause = false) {
   clearTimeout(retryTimer);
   clearTimeout(renewalTimer);
   clearTimeout(stallTimer);
+  clearTimeout(stableTimer);
   if (retain) capture();
   else {
     snapshot.value = "";
@@ -96,7 +98,7 @@ async function connect(retain = false, preservePause = false) {
     resolveId = undefined;
     token = resolved.token;
     if (!Hls.isSupported()) {
-      mode.value = "unavailable";
+      await showUnavailable();
       return;
     }
     hls = new Hls({
@@ -135,11 +137,7 @@ async function connect(retain = false, preservePause = false) {
   } catch {
     if (!disposed && current === generation) {
       resolveId = undefined;
-      mode.value = "unavailable";
-      reveal();
-      await nextTick();
-      if (!window.matchMedia("(pointer: coarse)").matches)
-        player.value?.querySelector<HTMLButtonElement>(".retry")?.focus();
+      await showUnavailable();
     }
   }
 }
@@ -150,8 +148,7 @@ function recover() {
   mode.value = "connecting";
   reveal();
   if (attempts >= 3) {
-    mode.value = "unavailable";
-    reveal();
+    void showUnavailable();
     return;
   }
   clearTimeout(retryTimer);
@@ -162,10 +159,26 @@ function ready() {
   snapshot.value = "";
   clearTimeout(stallTimer);
   clearTimeout(retryTimer);
-  attempts = 0;
   mode.value = video.value?.paused ? "paused" : "playing";
+  clearTimeout(stableTimer);
+  if (mode.value === "playing") {
+    const current = generation;
+    stableTimer = setTimeout(() => {
+      if (!disposed && current === generation && mode.value === "playing")
+        attempts = 0;
+    }, 30_000);
+  }
   updateLive();
   reveal();
+}
+async function showUnavailable() {
+  clearTimeout(stallTimer);
+  clearTimeout(stableTimer);
+  mode.value = "unavailable";
+  reveal();
+  await nextTick();
+  if (!window.matchMedia("(pointer: coarse)").matches)
+    player.value?.querySelector<HTMLButtonElement>(".retry")?.focus();
 }
 function waiting() {
   // WebKit can emit stalled while MMS has deliberately stopped fetching with
@@ -181,6 +194,13 @@ function waiting() {
   reveal();
   clearTimeout(stallTimer);
   stallTimer = setTimeout(recover, 12_000);
+}
+function paused() {
+  clearTimeout(stableTimer);
+  if (mode.value !== "connecting" && mode.value !== "unavailable")
+    mode.value = "paused";
+  reveal();
+  updateLive();
 }
 function updateLive() {
   const v = video.value,
@@ -207,7 +227,10 @@ function toggle() {
   const v = video.value;
   if (!v || !["playing", "paused"].includes(mode.value)) return;
   if (v.paused) void v.play().catch(() => {});
-  else v.pause();
+  else {
+    clearTimeout(stableTimer);
+    v.pause();
+  }
   reveal();
 }
 function choose(n: number) {
@@ -299,7 +322,7 @@ onUnmounted(() => {
   if (resolveId) api.cancel(resolveId);
   detach();
   clearInterval(liveTicker);
-  [hideTimer, retryTimer, renewalTimer, stallTimer].forEach(clearTimeout);
+  [hideTimer, retryTimer, renewalTimer, stallTimer, stableTimer].forEach(clearTimeout);
   document.removeEventListener("keydown", key);
   snapshot.value = "";
 });
@@ -325,12 +348,9 @@ onUnmounted(() => {
       @loadeddata="video?.paused && ready()"
       @waiting="waiting"
       @stalled="waiting"
-      @pause="
-        mode !== 'connecting' && mode !== 'unavailable' && (mode = 'paused');
-        reveal();
-        updateLive();
-      "
+      @pause="paused"
       @timeupdate="updateLive"
+      @ended="showUnavailable"
       @dblclick="fullscreen"
       @click="videoClick"
     />
@@ -344,13 +364,14 @@ onUnmounted(() => {
       <button
         class="circle"
         aria-label="Back to channels"
+        tabindex="-1"
         @click="emit('back')"
       >
         <Chevron />
       </button>
       <div class="player-titles">
         <h2>{{ title }}</h2>
-        <p>{{ channel.name }}</p>
+        <p>{{ subtitle }}</p>
       </div>
       <span class="stream-count"
         >Stream {{ index + 1 }} / {{ streams.length }}</span
