@@ -326,7 +326,7 @@ onUnmounted(() => {
                 "
               />
               <span class="event-info"
-                ><small>{{ event.competition }}</small
+                ><small v-if="event.competition">{{ event.competition }}</small
                 ><strong>{{ event.title }}</strong></span
               ><Chevron right />
             </button>
@@ -341,7 +341,7 @@ onUnmounted(() => {
           />
           <div>
             <h1 class="event-title">{{ route.event!.title }}</h1>
-            <p>{{ date(route.event) }}</p>
+            <p v-if="route.event?.startsAt">{{ date(route.event) }}</p>
           </div>
         </section>
         <h2 class="channel-heading">Choose a channel</h2>
