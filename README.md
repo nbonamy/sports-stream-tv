@@ -39,10 +39,14 @@ Within playback controls, Left/Right moves between play/pause and **LIVE**.
 A red dot means you're live. When LIVE is muted, select it to return to live and
 resume playback. It appears on streams that support returning to live.
 
-## Install
+## Requirements
 
-Requires Android TV 8.0 or later, Java 17+, Android SDK 36, Python 3, and ADB.
-Set the SDK location in your local `local.properties` file:
+To use Sports, you need Android TV 8.0 or later, an internet connection, and a remote.
+
+## Build and install
+
+On your computer, install Java 17+, Android SDK 36, Python 3, and ADB.
+Set the SDK location in the repository's local `local.properties` file:
 
 ```properties
 sdk.dir=/path/to/Android/sdk
@@ -54,7 +58,8 @@ Build a signed APK:
 make build
 ```
 
-The APK is written to `release/Sports.apk`. To install on a TV reachable through
+The APK is written to `release/Sports.apk`. Enable ADB debugging on your TV and
+authorize the computer's connection. To build and install on a TV reachable through
 ADB, replace the example address with your TV's address:
 
 ```sh
@@ -74,8 +79,9 @@ in `signing.properties`. Keep both for future app updates; they are excluded fro
 make check  # Core and Android UI tests, lint, and debug build
 ```
 
-See [AGENTS.md](AGENTS.md) for automatic player discovery, supported player formats,
-source diagnostics, and how to add another decoder.
+For a missing or non-working channel, follow [Channel support and playback](docs/player.md):
+identify the failing stream, trace its player, add or repair support, and verify playback.
+Repository conventions and task guides are in [AGENTS.md](AGENTS.md).
 
-Artwork prompts and asset preparation are in [docs/artwork](docs/artwork).
+Artwork style and asset preparation are in [Artwork](docs/artwork/README.md).
 The bundled Lato font is distributed under the [SIL Open Font License](licenses/Lato-OFL.txt).
