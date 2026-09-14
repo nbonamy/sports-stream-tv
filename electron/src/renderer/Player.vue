@@ -206,10 +206,23 @@ function retry() {
   attempts = 0;
   void connect(hasPicture.value);
 }
-function key(e: KeyboardEvent) {
+let escapePending = false;
+async function key(e: KeyboardEvent) {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === "Escape") {
+    e.preventDefault();
+    if (e.repeat || escapePending) return;
+    escapePending = true;
+    try {
+      const wasFullscreen = await window.sports.fullscreen(false);
+      if (!wasFullscreen && !disposed) emit("back");
+    } finally {
+      escapePending = false;
+    }
+    return;
+  }
   if ((e.target as HTMLElement).tagName === "INPUT") return;
-  if (e.key === "Escape" || e.key === "Backspace") {
+  if (e.key === "Backspace") {
     e.preventDefault();
     emit("back");
   } else if (e.key === "ArrowLeft") {

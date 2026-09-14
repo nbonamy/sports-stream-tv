@@ -15,7 +15,9 @@ npm start
 ## Controls
 
 - Click tiles to browse; arrow keys and Enter also work.
-- Back, Escape, or Backspace returns to the previous screen. Leaving the player exits fullscreen.
+- Escape exits fullscreen first, keeping the stream playing. In windowed playback,
+  Escape returns to channels. Elsewhere, Escape returns to the previous screen.
+- Back or Backspace returns to the previous screen. Leaving the player exits fullscreen.
 - Left/Right switches streams. Space plays or pauses.
 - Select LIVE, or press L, to return to the live edge.
 - Press F, double-click the video, or use the fullscreen button to toggle fullscreen.

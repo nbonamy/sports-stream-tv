@@ -175,7 +175,7 @@ function keyboard(e: KeyboardEvent) {
     return;
   if (e.key === "Escape" || e.key === "Backspace") {
     e.preventDefault();
-    void back();
+    if (!e.repeat) void back();
     return;
   }
   if (!e.key.startsWith("Arrow")) return;

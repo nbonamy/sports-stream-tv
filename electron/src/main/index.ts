@@ -199,7 +199,9 @@ app.whenReady().then(() => {
   ipcMain.handle("fullscreen", (e, enabled?: boolean) => {
     check(e);
     if (enabled !== undefined && typeof enabled !== "boolean") throw new Error("Invalid fullscreen state");
-    window!.setFullScreen(enabled ?? !window!.isFullScreen());
+    const wasFullscreen = window!.isFullScreen();
+    window!.setFullScreen(enabled ?? !wasFullscreen);
+    return wasFullscreen;
   });
   function createWindow() {
     window = new BrowserWindow({

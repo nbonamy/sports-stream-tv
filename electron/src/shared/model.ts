@@ -100,7 +100,8 @@ export interface SportsApi {
     id: string,
     range?: [number, number],
   ): Promise<MediaResponse>;
-  fullscreen(enabled?: boolean): Promise<void>;
+  /** Returns whether the window was fullscreen before applying the change. */
+  fullscreen(enabled?: boolean): Promise<boolean>;
 }
 declare global {
   interface Window {

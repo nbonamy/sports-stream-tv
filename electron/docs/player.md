@@ -25,6 +25,10 @@ Reconnection keeps a bounded snapshot in memory, and URL renewal uses the provid
 `expires` value when present. Initial resolution failures go straight to Retry;
 playback interruptions use bounded recovery.
 
+Escape uses the native window's fullscreen state: the first press exits fullscreen
+while preserving playback; a press in windowed mode returns to channels. Held-key
+repeats are ignored. Back and Backspace leave playback directly.
+
 ## Empty schedules
 
 Validate that the provider page contains recognizable listings before applying
