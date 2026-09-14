@@ -50,7 +50,8 @@ npm run check  # Type checking, tests, and production build
 ```
 
 The dev runner uses a local server and temporary app profile. Ctrl+C stops the
-app and its watchers.
+app and its watchers. Leave it running while editing; Vue and CSS changes appear
+without restarting the command.
 
 For non-working channels, read the shared [channel support guide](../docs/player.md)
 and [desktop playback notes](docs/player.md). Repository conventions are in

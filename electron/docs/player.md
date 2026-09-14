@@ -25,6 +25,14 @@ Reconnection keeps a bounded snapshot in memory, and URL renewal uses the provid
 `expires` value when present. Initial resolution failures go straight to Retry;
 playback interruptions use bounded recovery.
 
+## Empty schedules
+
+Validate that the provider page contains recognizable listings before applying
+sport-specific filters. The NBA page can contain only WNBA fixtures: filtering
+those out yields an empty NBA schedule, shown with empty Current and Upcoming
+sections. A page with no recognizable listings still reports a load failure.
+`tests/provider.test.ts` covers both cases.
+
 ## Loader and IPC contracts
 
 - Vue reactive objects must be converted to plain records before crossing the

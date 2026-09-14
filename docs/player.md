@@ -4,11 +4,10 @@ Sports reads channel listings from FSL, discovers the selected embedded player,
 extracts its HLS configuration, and passes it to the platform player. Support depends
 on the configuration format in the page; iframe and CDN hostnames can change.
 
-The Kotlin implementation under `android/` is the reference for the formats and
-fixtures below. Run its commands from `android/`. Platform playback behavior is
-documented in [Android playback](../android/docs/player.md) and
-[Desktop playback](../electron/docs/player.md). Electron has equivalent TypeScript
-parsers and fixtures under `electron/src/main/` and `electron/tests/`.
+The code map below names the Kotlin implementation under `android/`. Electron's
+TypeScript parsers and fixtures live under `electron/src/main/` and `electron/tests/`.
+Platform behavior and additional support details are documented in
+[Android playback](../android/docs/player.md) and [Desktop playback](../electron/docs/player.md).
 
 ## Diagnose a channel that does not work
 
@@ -70,7 +69,9 @@ exception classes; redact signed URLs, query tokens, cookies, and credentials.
    stream 1 was not selected instead. Keep fullscreen and visibility metadata faithful
    to the source HTML. Follow [PlayerDiscoveryTests.kt](../android/core/src/test/kotlin/fr/bonamy/sports/core/PlayerDiscoveryTests.kt)
    for renamed domains, iframe ranking, destination checks, and traversal bounds.
-4. **Run `make check`.** This runs core and Android tests, lint, and the debug build.
+4. **Run the affected platform's checks.** Use `make check` from `android/` for core
+   and Android tests, lint, and the debug build; use `npm run check` from `electron/`
+   for TypeScript checks, tests, and the production build.
    Check parser behavior on Android when regex or decoding changes: desktop Java
    and Android use different regex implementations. Escape literal braces and
    brackets explicitly, including closing delimiters. A swallowed regex-construction
