@@ -56,6 +56,35 @@ try {
   });
   run("codesign", ["--verify", "--deep", "--strict", appPath]);
   run("spctl", ["--assess", "--type", "execute", appPath]);
+  console.log("Creating Sports DMG…");
+  run("npx", ["electron-builder", "--mac", "dmg", "--prepackaged", appPath]);
+  const diskImage = path.resolve("out", `Sports-mac-${process.arch}.dmg`);
+  if (!existsSync(diskImage))
+    throw new Error("Packaged Sports DMG was not found.");
+  run("codesign", [
+    "--force",
+    "--sign",
+    process.env.IDENTIFY_DARWIN_CODE,
+    "--timestamp",
+    diskImage,
+  ]);
+  console.log("Submitting Sports DMG to Apple for notarization…");
+  await notarize({
+    appPath: diskImage,
+    appleId: process.env.APPLE_ID,
+    appleIdPassword: process.env.APPLE_PASSWORD,
+    teamId: process.env.APPLE_TEAM_ID,
+  });
+  run("codesign", ["--verify", "--strict", diskImage]);
+  run("xcrun", ["stapler", "validate", diskImage]);
+  run("spctl", [
+    "--assess",
+    "--type",
+    "open",
+    "--context",
+    "context:primary-signature",
+    diskImage,
+  ]);
   const archive = path.resolve("out", `Sports-mac-${process.arch}.zip`);
   run("ditto", [
     "-c",
@@ -65,7 +94,9 @@ try {
     appPath,
     archive,
   ]);
-  console.log(`Signed and notarized: ${appPath}\nArchive: ${archive}`);
+  console.log(
+    `Signed and notarized: ${appPath}\nDisk image: ${diskImage}\nArchive: ${archive}`,
+  );
 } catch (error) {
   console.error(redact(error instanceof Error ? error.message : error));
   process.exitCode = 1;

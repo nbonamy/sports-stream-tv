@@ -53,6 +53,32 @@
         "dir"
       ],
       "identity": null
+    },
+    "dmg": {
+      "artifactName": "Sports-mac-${arch}.${ext}",
+      "background": "resources/dmg-background.png",
+      "icon": "resources/icon.icns",
+      "iconSize": 112,
+      "iconTextSize": 13,
+      "sign": false,
+      "title": "Sports",
+      "window": {
+        "width": 660,
+        "height": 440
+      },
+      "contents": [
+        {
+          "x": 185,
+          "y": 225,
+          "type": "file"
+        },
+        {
+          "x": 475,
+          "y": 225,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ]
     }
   },
   "engines": {

@@ -41,7 +41,8 @@ npm run release
 ```
 
 This signs the app, submits it to Apple, staples the notarization ticket, checks
-Gatekeeper acceptance, and creates `out/Sports-mac-arm64.zip` (or `x64`). Signing
+Gatekeeper acceptance, and creates a styled `out/Sports-mac-arm64.dmg` plus
+`out/Sports-mac-arm64.zip` (or `x64`). Signing
 settings stay local and are excluded from Git and the packaged app.
 
 ## Development
