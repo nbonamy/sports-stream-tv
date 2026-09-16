@@ -17,7 +17,7 @@ function links($: CheerioAPI, node: AnyNode, pageUrl: string): StreamLink[] {
       try {
         const url = new URL($(a).attr("href")!, pageUrl);
         if (
-          url.host !== new URL(pageUrl).host ||
+          !providerLinkHost(new URL(pageUrl).hostname, url.hostname) ||
           !["http:", "https:"].includes(url.protocol) ||
           url.hash ||
           url.username ||
@@ -32,6 +32,29 @@ function links($: CheerioAPI, node: AnyNode, pageUrl: string): StreamLink[] {
       }
     });
   return found;
+}
+function providerLinkHost(pageHost: string, targetHost: string): boolean {
+  if (pageHost === targetHost) return true;
+  const family = /^freestreams-live\d+[a-z]?\.([a-z]{2,})$/i;
+  const page = family.exec(pageHost);
+  const target = family.exec(targetHost);
+  return (
+    !!page && !!target && page[1].toLowerCase() === target[1].toLowerCase()
+  );
+}
+function imageUrls($: CheerioAPI, node: AnyNode, pageUrl: string): string[] {
+  const urls: string[] = [];
+  $(node)
+    .find(".teamzlg img[src]")
+    .each((_, image) => {
+      try {
+        const url = new URL($(image).attr("src")!, pageUrl);
+        if (url.protocol === "https:") urls.push(url.href);
+      } catch {
+        /* optional team art */
+      }
+    });
+  return urls;
 }
 function headingDate(text: string, now: number): Date | null {
   const match =
@@ -98,7 +121,15 @@ export function parseCatalog(
     if (el.hasClass("teamz")) {
       const section = el.parents(".elementor-top-section").first()[0];
       if (!section) return;
-      const streamLinks = links($, section, pageUrl);
+      const images = imageUrls($, section, pageUrl);
+      const streamLinks = links($, section, pageUrl).map((link) => ({
+        ...link,
+        artworkUrl: /^HOME$/i.test(link.label)
+          ? images.at(-1)
+          : /^AWAY$/i.test(link.label)
+            ? images[0]
+            : undefined,
+      }));
       if (!streamLinks.length) return;
       const rawTime =
         /\d{1,2}:\d{2}\s*[AP]M\s*ET/i.exec($(section).text())?.[0] ?? "";
@@ -139,8 +170,10 @@ export function parseCatalog(
         // leftover tables must not inherit its earlier date and become live events.
         if (/\b24\s*\/\s*7\s+CHANNELS?\b/i.test(competition) && rawTime) return;
         const time = /^(\d{1,2}):(\d{2})$/.exec(rawTime);
-        const minutes = time && +time[1] < 24 && +time[2] < 60
-          ? +time[1] * 60 + +time[2] : null;
+        const minutes =
+          time && +time[1] < 24 && +time[2] < 60
+            ? +time[1] * 60 + +time[2]
+            : null;
         if (minutes !== null) {
           // Evening listings continue at 00:00 on the following source date.
           // Small out-of-order time changes do not indicate a new day.
@@ -231,7 +264,10 @@ export async function getEvents(
   // A valid offseason page can contain only WNBA fixtures.
   return events.filter((e) => id !== "nba" || !/WNBA/i.test(e.competition));
 }
-export async function getCountries(signal: AbortSignal | undefined, client: PageClient) {
+export async function getCountries(
+  signal: AbortSignal | undefined,
+  client: PageClient,
+) {
   const response = await client(PROVIDER_BASE + "live-tv/", {}, signal);
   const countries = parseCountries(response.body, response.url);
   if (!countries.length) throw new Error("No channels available");

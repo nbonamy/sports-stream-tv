@@ -73,6 +73,13 @@ const schedule = computed(() => {
 const eventChannels = computed(() =>
   route.value.event ? channelsFor(route.value.event) : [],
 );
+const matchupChannels = computed(() =>
+  route.value.sport?.id === "mlb" &&
+  eventChannels.value.length === 2 &&
+  eventChannels.value.every((channel) => channel.side && channel.teamName)
+    ? eventChannels.value
+    : [],
+);
 const time = (e: SportsEvent) =>
   e.startsAt === null
     ? e.timeLabel
@@ -358,8 +365,34 @@ onUnmounted(() => {
             <p v-if="route.event?.startsAt">{{ date(route.event) }}</p>
           </div>
         </section>
-        <h2 class="channel-heading">Choose a channel</h2>
-        <div class="channel-list">
+        <h2 class="channel-heading">
+          {{
+            matchupChannels.length ? "Choose a broadcast" : "Choose a channel"
+          }}
+        </h2>
+        <div v-if="matchupChannels.length" class="matchup-grid">
+          <button
+            v-for="c in matchupChannels"
+            :key="c.name"
+            :data-key="c.name"
+            class="matchup-card"
+            @click="play(c)"
+          >
+            <img
+              v-if="c.artworkUrl"
+              :src="api.leagueImage(c.artworkUrl)"
+              alt=""
+              @error="
+                ($event.target as HTMLImageElement).style.visibility =
+                  'hidden'
+              "
+            />
+            <span>{{ c.side }} broadcast</span>
+            <strong>{{ c.teamName }}</strong>
+            <small>Watch <Chevron right /></small>
+          </button>
+        </div>
+        <div v-else class="channel-list">
           <button
             v-for="c in eventChannels"
             :key="c.name"

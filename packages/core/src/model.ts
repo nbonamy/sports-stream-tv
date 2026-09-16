@@ -1,10 +1,14 @@
 export interface StreamLink {
   label: string;
   url: string;
+  artworkUrl?: string;
 }
 export interface Channel {
   name: string;
   links: StreamLink[];
+  side?: "HOME" | "AWAY";
+  teamName?: string;
+  artworkUrl?: string;
 }
 export interface SportsEvent {
   title: string;
@@ -61,7 +65,25 @@ export function channelsFor(event: SportsEvent): Channel[] {
       : label.replace(/\s+#\d+$/, "");
     groups.set(name, [...(groups.get(name) ?? []), link]);
   }
-  return [...groups].map(([name, links]) => ({ name, links }));
+  const teams = event.title.split(/\s+@\s+/, 2);
+  return [...groups].map(([name, links]) => {
+    const side = /^(HOME|AWAY)$/i.exec(name)?.[1].toUpperCase() as
+      | "HOME"
+      | "AWAY"
+      | undefined;
+    return {
+      name,
+      links,
+      side,
+      teamName:
+        teams.length === 2 && side
+          ? side === "HOME"
+            ? teams[1]
+            : teams[0]
+          : undefined,
+      artworkUrl: links[0].artworkUrl,
+    };
+  });
 }
 export function section(event: SportsEvent, sport: Sport, now: number): string {
   if (event.isChannel) return "Channels";

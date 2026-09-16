@@ -372,6 +372,47 @@ test("American schedule times accept provider casing and spacing", () => {
     assert.notEqual(parseCatalog(html, PROVIDER_BASE)[0].startsAt, null);
   }
 });
+test("MLB matchups keep home and away feeds across provider sibling domains", () => {
+  const html = `<h2>SEPTEMBER 15, 2026</h2><section class="elementor-top-section">
+    <div class="teamzlg"><img src="https://a.espncdn.com/atl.png"></div>
+    <div class="teamz">BRAVES @ CUBS</div><span>7:40 PM ET</span>
+    <a href="https://freestreams-live1g.pk/chicago-cubs-live-stream/">HOME</a>
+    <a href="/atlanta-braves-live-streaming/">AWAY</a>
+    <div class="teamzlg"><img src="https://a.espncdn.com/chc.png"></div></section>`;
+  const event = parseCatalog(html, PROVIDER_BASE)[0];
+  assert.deepEqual(
+    event.links.map(({ label, url }) => ({ label, url })),
+    [
+      {
+        label: "HOME",
+        url: "https://freestreams-live1g.pk/chicago-cubs-live-stream/",
+      },
+      {
+        label: "AWAY",
+        url: PROVIDER_BASE + "atlanta-braves-live-streaming/",
+      },
+    ],
+  );
+  assert.deepEqual(
+    channelsFor(event).map(({ side, teamName, artworkUrl }) => ({
+      side,
+      teamName,
+      artworkUrl,
+    })),
+    [
+      {
+        side: "HOME",
+        teamName: "CUBS",
+        artworkUrl: "https://a.espncdn.com/chc.png",
+      },
+      {
+        side: "AWAY",
+        teamName: "BRAVES",
+        artworkUrl: "https://a.espncdn.com/atl.png",
+      },
+    ],
+  );
+});
 test("catalog links reject credentials and fragments", () => {
   const html = `<h2>SEPTEMBER 14, 2026</h2><table><tr><td class="matchtime">12:00</td><td class="event-title">A vs B</td><td><a href="https://user:pw@freestreams-live1h.pk/private">Credentials</a><a href="/valid#chat">Fragment</a><a href="/valid">Watch</a></td></tr></table>`;
   assert.deepEqual(

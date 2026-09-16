@@ -20,8 +20,14 @@ enum class Sport(val label: String, val path: String, val windowHours: Long = 4)
     VOLLEYBALL("Volleyball", "volleyball-live-streams/"), HANDBALL("Handball", "handball-live-streaming/");
     companion object { val featured = entries.take(8); val more = entries.drop(8) }
 }
-data class StreamLink(val label: String, val url: String)
-data class Channel(val name: String, val links: List<StreamLink>) {
+data class StreamLink(val label: String, val url: String, val artworkUrl: String? = null)
+data class Channel(
+    val name: String,
+    val links: List<StreamLink>,
+    val side: String? = null,
+    val teamName: String? = null,
+    val artworkUrl: String? = null,
+) {
     val id: String get() = links.first().url
 }
 data class SportsEvent(
@@ -39,7 +45,13 @@ data class SportsEvent(
         if (Regex("(?i)(LINK\\s*#?\\d+|WATCH)").matches(label)) {
             URI(link.url).path.trim('/').split('-').joinToString(" ") { it.replaceFirstChar(Char::titlecase) }
         } else label.replace(Regex("\\s+#\\d+$"), "")
-    }.map { (name, alternatives) -> Channel(name, alternatives) }
+    }.map { (name, alternatives) ->
+        val side = name.uppercase().takeIf { it == "HOME" || it == "AWAY" }
+        val teams = title.split(Regex("\\s+@\\s+"), limit = 2)
+        Channel(name, alternatives, side,
+            if (teams.size == 2 && side != null) if (side == "HOME") teams[1] else teams[0] else null,
+            alternatives.first().artworkUrl)
+    }
 }
 
 object CatalogParser {
@@ -53,7 +65,12 @@ object CatalogParser {
             when {
                 element.hasClass("teamz") -> {
                     val section = element.parents().firstOrNull { it.hasClass("elementor-top-section") } ?: return@forEach
-                    val links = links(section, pageUrl)
+                    val images = section.select(".teamzlg img[src]").mapNotNull { imageUrl(it, pageUrl) }
+                    val links = links(section, pageUrl).map { link -> link.copy(artworkUrl = when {
+                        link.label.equals("HOME", true) -> images.lastOrNull()
+                        link.label.equals("AWAY", true) -> images.firstOrNull()
+                        else -> null
+                    }) }
                     if (links.isEmpty()) return@forEach
                     val rawTime = Regex("\\d{1,2}:\\d{2}\\s*[AP]M\\s*ET", RegexOption.IGNORE_CASE).find(section.text())?.value.orEmpty()
                     val localTime = rawTime.replace(Regex("(?i)\\s*ET$"), "").uppercase(Locale.US)
@@ -103,10 +120,22 @@ object CatalogParser {
     private fun links(element: Element, pageUrl: String) = element.select("a[href]").mapNotNull { a ->
         val source = runCatching { URI(a.attr("href")) }.getOrNull() ?: return@mapNotNull null
         val uri = runCatching { URI(a.absUrl("href")) }.getOrNull() ?: return@mapNotNull null
-        if (uri.host != URI(pageUrl).host || uri.scheme !in listOf("http", "https") ||
+        if (!providerLinkHost(URI(pageUrl).host, uri.host) || uri.scheme !in listOf("http", "https") ||
             uri.fragment != null || uri.userInfo != null || source.userInfo != null) return@mapNotNull null
         StreamLink(a.text().ifBlank { "Watch" }, uri.toString().replaceFirst("http://", "https://"))
     }.distinctBy { it.url }
+
+    private fun providerLinkHost(pageHost: String, targetHost: String): Boolean {
+        if (pageHost.equals(targetHost, true)) return true
+        val family = Regex("(?i)^freestreams-live\\d+[a-z]?\\.([a-z]{2,})$")
+        val page = family.matchEntire(pageHost)?.groupValues?.get(1)
+        val target = family.matchEntire(targetHost)?.groupValues?.get(1)
+        return page != null && page.equals(target, true)
+    }
+
+    private fun imageUrl(element: Element, pageUrl: String): String? = runCatching {
+        URI(URI(pageUrl).resolve(element.attr("src")).toString())
+    }.getOrNull()?.takeIf { it.scheme == "https" }?.toString()
 
     // Pages omit the year. Choose the nearest occurrence, including across New Year.
     private fun parseDate(text: String, now: Instant): LocalDate? {

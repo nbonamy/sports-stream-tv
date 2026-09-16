@@ -53,6 +53,23 @@ class ScheduleTests {
         }
     }
 
+    @Test fun `MLB matchups keep home and away feeds across provider sibling domains`() {
+        val html = """<h2>SEPTEMBER 15, 2026</h2><section class="elementor-top-section">
+            <div class="teamzlg"><img src="https://a.espncdn.com/atl.png"></div>
+            <div class="teamz">BRAVES @ CUBS</div><span>7:40 PM ET</span>
+            <a href="https://freestreams-live1g.pk/chicago-cubs-live-stream/">HOME</a>
+            <a href="/atlanta-braves-live-streaming/">AWAY</a>
+            <div class="teamzlg"><img src="https://a.espncdn.com/chc.png"></div></section>"""
+        val event = CatalogParser.parse(html, "https://freestreams-live1h.pk/").single()
+        val links = event.links
+        assertEquals(listOf("HOME", "AWAY"), links.map { it.label })
+        assertEquals(listOf("https://freestreams-live1g.pk/chicago-cubs-live-stream/",
+            "https://freestreams-live1h.pk/atlanta-braves-live-streaming/"), links.map { it.url })
+        assertEquals(listOf("CUBS", "BRAVES"), event.channels.map { it.teamName })
+        assertEquals(listOf("https://a.espncdn.com/chc.png", "https://a.espncdn.com/atl.png"),
+            event.channels.map { it.artworkUrl })
+    }
+
     @Test fun `date headings preserve stale dates and cross year boundaries`() {
         fun parse(heading: String, reference: String) = CatalogParser.parse("""<h2>$heading</h2><table><tr>
             <td class="matchtime">01:00</td><td class="event-title">A vs B</td><td><a href="/watch">Watch</a></td></tr></table>""",

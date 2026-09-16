@@ -300,6 +300,56 @@ h2 small {
 .channel-list {
   padding: 3px;
 }
+.matchup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+.matchup-card {
+  min-height: 250px;
+  padding: 26px;
+  border: 1.5px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+}
+.matchup-card:focus {
+  border-color: var(--accent);
+  outline-offset: -1px;
+  background: #101c27;
+}
+.matchup-card img {
+  width: 96px;
+  height: 96px;
+  object-fit: contain;
+  margin-bottom: 4px;
+}
+.matchup-card span {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.matchup-card strong {
+  font-size: 26px;
+}
+.matchup-card small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 15px;
+}
+.matchup-card small svg {
+  width: 12px;
+}
 .country-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -824,6 +874,20 @@ html[data-platform="mobile"] .plain {
     padding: 16px;
     gap: 14px;
     font-size: 18px;
+  }
+  .matchup-grid {
+    gap: 12px;
+  }
+  .matchup-card {
+    min-height: 210px;
+    padding: 18px 10px;
+  }
+  .matchup-card img {
+    width: 72px;
+    height: 72px;
+  }
+  .matchup-card strong {
+    font-size: 19px;
   }
   .country-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

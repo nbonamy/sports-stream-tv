@@ -96,6 +96,12 @@ ends the timed fixture list; timed rows below it are ignored until a new competi
 heading. Within a competition table, a clock jump backwards by more than 12 hours
 advances the source date by one day. Explicit row timestamps take precedence.
 
+MLB matchup listings preserve the provider's Home and Away links, including links
+to its sibling domains. The first team/logo is Away and the second is Home. When
+both feeds are available, all platforms show broadcast cards with the team names
+and logos; other channel lists retain their standard layout. Listing a feed does
+not imply that its embedded player format is supported.
+
 Core files are under `android/core/src/main/kotlin/fr/bonamy/sports/core/`;
 Android files are under `android/app/src/main/java/fr/bonamy/sports/`.
 

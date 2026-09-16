@@ -422,17 +422,51 @@ class MainActivity : ComponentActivity() {
         text.addView(label(eventTime(event), 13f, MUTED))
         hero.addView(text, LinearLayout.LayoutParams(0, -2, 1f))
         body.addSpaced(hero, bottom = 20)
-        body.addSpaced(label("Choose a channel", 20f).apply { bold() }, bottom = 16)
-        val channels = column()
+        val matchup = sport == Sport.MLB && event.channels.size == 2 &&
+            event.channels.all { it.side != null && it.teamName != null }
+        body.addSpaced(label(if (matchup) "Choose a broadcast" else "Choose a channel", 20f).apply { bold() }, bottom = 16)
         var target: View? = null
-        event.channels.forEach { channel ->
-            val button = action("▶    ${channel.name}") { openChannel(channel) }
-            button.gravity = Gravity.CENTER_VERTICAL or Gravity.START
-            channels.addSpaced(button, dp(52), 10)
-            if (target == null || channel.id == selectedChannel?.id) target = button
+        if (matchup) {
+            val choices = row()
+            event.channels.forEachIndexed { index, channel ->
+                val button = matchupChannel(channel)
+                choices.addView(button, LinearLayout.LayoutParams(0, dp(190), 1f).apply {
+                    if (index > 0) marginStart = dp(12)
+                    if (index < event.channels.lastIndex) marginEnd = dp(12)
+                })
+                if (target == null || channel.id == selectedChannel?.id) target = button
+            }
+            body.addView(choices, LinearLayout.LayoutParams(-1, -2))
+        } else {
+            val channels = column()
+            event.channels.forEach { channel ->
+                val button = action("▶    ${channel.name}") { openChannel(channel) }
+                button.gravity = Gravity.CENTER_VERTICAL or Gravity.START
+                channels.addSpaced(button, dp(52), 10)
+                if (target == null || channel.id == selectedChannel?.id) target = button
+            }
+            body.addView(ScrollView(this).apply { addView(channels) }, LinearLayout.LayoutParams(-1, 0, 1f))
         }
-        body.addView(ScrollView(this).apply { addView(channels) }, LinearLayout.LayoutParams(-1, 0, 1f))
         target?.requestFocus()
+    }
+
+    private fun matchupChannel(channel: Channel): View = column().apply {
+        isFocusable = true; isClickable = true; background = focusBackground(); gravity = Gravity.CENTER
+        setPadding(dp(18), dp(12), dp(18), dp(12)); setOnClickListener { openChannel(channel) }
+        val icon = ImageView(this@MainActivity).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
+        }
+        addView(icon, LinearLayout.LayoutParams(dp(76), dp(76)).apply { bottomMargin = dp(8) })
+        addView(label("${channel.side} BROADCAST", 10f, ACCENT).apply { gravity = Gravity.CENTER })
+        addView(label(channel.teamName.orEmpty(), 18f).apply { bold(); gravity = Gravity.CENTER; maxLines = 1 },
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(5) })
+        addView(label("Watch  ›", 11f, MUTED).apply { gravity = Gravity.CENTER },
+            LinearLayout.LayoutParams(-1, -2).apply { topMargin = dp(8) })
+        contentDescription = "${channel.side} broadcast, ${channel.teamName}"
+        channel.artworkUrl?.let { url ->
+            iconJobs += lifecycleScope.launch { LeagueIcons.load(url)?.let { icon.setImageBitmap(it) } }
+        }
     }
 
     private fun openChannel(channel: Channel, initialStream: Int = 0) {
