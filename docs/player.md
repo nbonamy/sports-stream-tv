@@ -101,6 +101,10 @@ Catalogs use the provider's dated competition sections. A `24/7 Channels` headin
 ends the timed fixture list; timed rows below it are ignored until a new competition
 heading. Within a competition table, a clock jump backwards by more than 12 hours
 advances the source date by one day. Explicit row timestamps take precedence.
+American matchup cards use the innermost `.teamz` element for the title; nested
+layout wrappers do not create extra events or add kickoff times to titles.
+The shared [`nhl-schedule.json`](../contracts/streams/nhl-schedule.json) fixture
+checks schedule routing, nested titles, times, and broadcast labels in both engines.
 
 MLB matchup listings preserve the provider's Home and Away links, including links
 to its sibling domains. The first team/logo is Away and the second is Home. When

@@ -13,7 +13,7 @@ enum class Sport(val label: String, val path: String, val windowHours: Long = 4)
     RUGBY("Rugby", "rugby-live-stream10/", 3), F1("F1", "f1-live-stream99/"),
     GOLF("Golf", "golf-live-stream98/", 12),
     NFL("NFL", "nfl-live-stream20/", 5), NBA("NBA", "nba-stream70/"),
-    MLB("MLB", "mlb-stream2/", 5), NHL("NHL", "nhl-live-stream33/"),
+    MLB("MLB", "mlb-stream2/", 5), NHL("NHL", "nhl-live-stream60/"),
     MMA("MMA", "ufc-live-stream2/"), BOXING("Boxing", "boxing-live-stream10/"),
     MOTORSPORT("Motorsport", "motorsports-streams5/"),
     NCAAF("College Football", "ncaaf-live-stream01/", 5), BASKETBALL("Basketball", "basketball-live-stream2/"),
@@ -64,6 +64,8 @@ object CatalogParser {
         doc.select("h2, h3, table, .teamz").forEach { element ->
             when {
                 element.hasClass("teamz") -> {
+                    // Wrappers can repeat this class; only the innermost node is the matchup title.
+                    if (element.select(".teamz").any { it !== element }) return@forEach
                     val section = element.parents().firstOrNull { it.hasClass("elementor-top-section") } ?: return@forEach
                     val images = section.select(".teamzlg img[src]").mapNotNull { imageUrl(it, pageUrl) }
                     val links = links(section, pageUrl).map { link -> link.copy(artworkUrl = when {

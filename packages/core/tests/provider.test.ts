@@ -372,6 +372,28 @@ test("American schedule times accept provider casing and spacing", () => {
     assert.notEqual(parseCatalog(html, PROVIDER_BASE)[0].startsAt, null);
   }
 });
+test("NHL schedule uses the current route and emits each nested matchup once", async () => {
+  const fixture = JSON.parse(
+    readFileSync(
+      new URL("../../../contracts/streams/nhl-schedule.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const events = await getEvents("nhl", undefined, async (url) => {
+    assert.equal(url, PROVIDER_BASE + fixture.path);
+    return { url, body: fixture.html };
+  });
+  assert.deepEqual(
+    events.map(({ title, timeLabel, startsAt, competition, links }) => ({
+      title,
+      timeLabel,
+      startsAt,
+      competition,
+      channelLabels: links.map((link) => link.label),
+    })),
+    fixture.events,
+  );
+});
 test("MLB matchups keep home and away feeds across provider sibling domains", () => {
   const html = `<h2>SEPTEMBER 15, 2026</h2><section class="elementor-top-section">
     <div class="teamzlg"><img src="https://a.espncdn.com/atl.png"></div>

@@ -40,7 +40,7 @@ export const sports: Sport[] = [
   ["nfl", "NFL", "nfl-live-stream20/", 5, "nfl"],
   ["nba", "NBA", "nba-stream70/", 4, "nba"],
   ["mlb", "MLB", "mlb-stream2/", 5, "mlb"],
-  ["nhl", "NHL", "nhl-live-stream33/", 4, "nhl"],
+  ["nhl", "NHL", "nhl-live-stream60/", 4, "nhl"],
   ["mma", "MMA", "ufc-live-stream2/", 4, "mma"],
   ["boxing", "Boxing", "boxing-live-stream10/", 4, "boxing"],
   ["motorsport", "Motorsport", "motorsports-streams5/", 4, "motorsport"],

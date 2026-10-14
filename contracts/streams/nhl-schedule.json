@@ -1,0 +1,27 @@
+{
+  "path": "nhl-live-stream60/",
+  "html": "<h2>OCTOBER 13, 2026</h2><h3>NHL</h3>\n<section class=\"elementor-top-section\"><div class=\"teamz\"><p>6:00 PM ET</p><h2><span class=\"teamz\">DEVILS @ RED WINGS</span></h2></div><a href=\"/devils/\">AWAY</a><a href=\"/red-wings/\">HOME</a></section>\n<section class=\"elementor-top-section\"><div class=\"teamz\"><p>6:15 PM ET</p><div class=\"teamz\"><h2><span class=\"teamz\">PANTHERS @ BLUE JACKETS</span></h2></div></div><a href=\"/nhl-network/\">NHL Network</a></section>\n<section class=\"elementor-top-section\"><p>8:00 PM ET</p><h2><span class=\"teamz\">KINGS @ BRUINS</span></h2><a href=\"/nhl-network/\">NHL Network</a></section>",
+  "events": [
+    {
+      "title": "DEVILS @ RED WINGS",
+      "timeLabel": "6:00 PM ET",
+      "startsAt": 1791928800000,
+      "competition": "NHL",
+      "channelLabels": ["AWAY", "HOME"]
+    },
+    {
+      "title": "PANTHERS @ BLUE JACKETS",
+      "timeLabel": "6:15 PM ET",
+      "startsAt": 1791929700000,
+      "competition": "NHL",
+      "channelLabels": ["NHL Network"]
+    },
+    {
+      "title": "KINGS @ BRUINS",
+      "timeLabel": "8:00 PM ET",
+      "startsAt": 1791936000000,
+      "competition": "NHL",
+      "channelLabels": ["NHL Network"]
+    }
+  ]
+}

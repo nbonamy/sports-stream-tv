@@ -119,6 +119,8 @@ export function parseCatalog(
   $("h2,h3,table,.teamz").each((_, element) => {
     const el = $(element);
     if (el.hasClass("teamz")) {
+      // Wrappers can repeat this class; only the innermost node is the matchup title.
+      if (el.find(".teamz").length) return;
       const section = el.parents(".elementor-top-section").first()[0];
       if (!section) return;
       const images = imageUrls($, section, pageUrl);

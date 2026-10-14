@@ -2,8 +2,31 @@ package fr.bonamy.sports.core
 
 import java.time.Instant
 import kotlin.test.*
+import com.google.gson.Gson
+import java.io.InputStreamReader
+import kotlinx.coroutines.runBlocking
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
 
 class ScheduleTests {
+    private data class NhlSchedule(val path: String, val html: String, val events: List<NhlEvent>)
+    private data class NhlEvent(val title: String, val timeLabel: String, val startsAt: Long?, val competition: String, val channelLabels: List<String>)
+
+    @Test fun `NHL schedule uses the current route and emits each nested matchup once`() = runBlocking {
+        val input = checkNotNull(javaClass.getResourceAsStream("/streams/nhl-schedule.json"))
+        val fixture = input.use { Gson().fromJson(InputStreamReader(it), NhlSchedule::class.java) }
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            val request = chain.request()
+            assertEquals(SportsRepository.BASE + fixture.path, request.url.toString())
+            Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                .body(fixture.html.toResponseBody()).build()
+        }.build()
+        val events = SportsRepository(PageClient(client)).events(Sport.NHL)
+        assertEquals(fixture.events, events.map { NhlEvent(it.title, it.timeLabel, it.startsAt, it.competition, it.links.map { link -> link.label }) })
+    }
+
     private val now = Instant.parse("2026-09-13T18:00:00Z").toEpochMilli()
     private fun event(start: Long?) = SportsEvent("A vs B", "League", "", start, listOf(StreamLink("Sky F1", "https://example.test/channel")))
 
