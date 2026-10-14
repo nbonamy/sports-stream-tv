@@ -104,6 +104,25 @@ function stringArray(json: string): string {
     throw new Error("Invalid string array");
   return value.join("");
 }
+function arrayEntry(html: string, name: string, index: number): string | null {
+  const declaration = new RegExp(
+    `\\b(?:var|let|const)\\s+${escaped(name)}\\s*=\\s*(\\[[^\\]]{0,65536}\\])\\s*;`,
+  ).exec(html);
+  if (!declaration) return null;
+  try {
+    const values: unknown = JSON.parse(declaration[1]);
+    if (
+      !Array.isArray(values) ||
+      values.length > 128 ||
+      values.some((v) => typeof v !== "string")
+    )
+      return null;
+    const value = values[index];
+    return typeof value === "string" && isHls(value) ? value : null;
+  } catch {
+    return null;
+  }
+}
 export function playlist(html: string): string | null {
   for (const decoded of [barecrop(html), indexed(html)])
     if (decoded && isHls(decoded)) return decoded;
@@ -111,23 +130,23 @@ export function playlist(html: string): string | null {
   for (const match of html.matchAll(
     /\b(?:source|file|src)\s*:\s*([A-Za-z_$][\w$]*)\s*\[\s*(\d{1,4})\s*\]\s*[,}]/g,
   )) {
-    const declaration = new RegExp(
-      `\\b(?:var|let|const)\\s+${escaped(match[1])}\\s*=\\s*(\\[[^\\]]{0,65536}\\])\\s*;`,
+    const value = arrayEntry(html, match[1], Number(match[2]));
+    if (value) return value;
+  }
+  // A simple getter selects the initial source; never execute its fallback logic.
+  for (const match of html.matchAll(
+    /\b(?:source|file|src)\s*:\s*([A-Za-z_$][\w$]*)\(\s*\)\s*[,}]/g,
+  )) {
+    const getter = new RegExp(
+      `\\bfunction\\s+${escaped(match[1])}\\(\\s*\\)\\s*\\{\\s*return\\s+([A-Za-z_$][\\w$]*)\\[\\s*([A-Za-z_$][\\w$]*)\\s*\\]\\s*;?\\s*\\}`,
     ).exec(html);
-    if (!declaration) continue;
-    try {
-      const values: unknown = JSON.parse(declaration[1]);
-      if (
-        !Array.isArray(values) ||
-        values.length > 128 ||
-        values.some((value) => typeof value !== "string")
-      )
-        continue;
-      const value = values[Number(match[2])];
-      if (typeof value === "string" && isHls(value)) return value;
-    } catch {
-      // Only JSON string arrays are supported; provider expressions stay data.
-    }
+    if (!getter) continue;
+    const index = new RegExp(
+      `\\b(?:var|let|const)\\s+${escaped(getter[2])}\\s*=\\s*(\\d{1,4})\\s*;`,
+    ).exec(html);
+    if (!index) continue;
+    const value = arrayEntry(html, getter[1], Number(index[1]));
+    if (value) return value;
   }
   const expression =
     /return\s*\(\s*(\[\s*".*?\])\.join\(\s*""\s*\)(.*?)\)\s*;/s.exec(html);
@@ -171,7 +190,7 @@ export function playlist(html: string): string | null {
     if (isHls(value)) return value;
   }
   for (const match of html.matchAll(
-    /\bsource\s*:\s*([A-Za-z_$][\w$]*)\s*[,}]/g,
+    /\b(?:source|file|src)\s*:\s*([A-Za-z_$][\w$]*)\s*[,}]/g,
   )) {
     const declaration = new RegExp(
       `\\b(?:var|let|const)\\s+${escaped(match[1])}\\s*=\\s*(['"])(https?[^'"\\s]+)\\1\\s*;`,

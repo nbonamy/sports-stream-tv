@@ -61,6 +61,12 @@ exception classes; redact signed URLs, query tokens, cookies, and credentials.
    [SourceTests.kt](../android/core/src/test/kotlin/fr/bonamy/sports/core/SourceTests.kt)
    and mirror the same sanitized page chain in `packages/core/tests/provider.test.ts`.
    Assert request order and headers, and confirm both cores fail before the fix.
+   Media-envelope cases belong in
+   [`contracts/streams/media-cases.json`](../contracts/streams/media-cases.json),
+   with synthetic input bytes and the exact decoded output shared by both engines.
+   [`contracts/streams/session-case.json`](../contracts/streams/session-case.json)
+   covers dynamic embed construction, session registration, request headers, and
+   renewal expiry, including rejected and incomplete session responses.
 2. **Change the narrowest component.** Reuse a decoder when the format is already
    supported. Adjust iframe discovery for a missing HTML shape. For a dynamically
    constructed iframe, derive its URL only after inspecting its construction.
@@ -147,6 +153,37 @@ Store stable channel-page URLs and resolve media URLs afresh. The resolver reads
 an `expires` query parameter and the app schedules renewal from it. Additional
 expiry formats need explicit parsing and fixtures. Preserve coroutine cancellation
 so a previous channel's resolution cannot replace the current selection.
+
+### Session-based players
+
+`session-player.ts` and `SessionPlayer.kt` recognize the embed script's data
+attributes and literal `siteConfig` JSON, then construct its player iframe URL.
+They interpret the known base64/character-array URL bindings and register the
+published session with its CSRF header. Only a successful response with a device
+ID and valid expiry permits the manifest request. The registered device ID is
+applied to the media URL, and `valid_until` feeds the existing renewal mechanism.
+These manifests may use a `.ts` path; their response must still contain `#EXTM3U`.
+All derived destinations retain the public HTTPS and DNS checks.
+
+Literal array getters such as `file: currentSource()` are supported when the
+function only returns a declared array at a declared initial integer index.
+The app uses that initial entry and does not execute the website's automatic
+fallback logic or switch the user's numbered stream.
+
+### Image-wrapped video segments
+
+Some players bind `file` to a literal URL variable and deliver MPEG-TS segments
+inside PNG pixel data. The `TIKTIKPX` envelope contains a length-prefixed gzip payload
+in the image's RGB bytes. Both engines reconstruct 8-bit, non-interlaced RGB/RGBA
+PNG rows, decompress the payload, and validate MPEG-TS packet boundaries before
+passing bytes to the player. Image rendering APIs are unsuitable because they can
+change the encoded colors. Ordinary media passes through unchanged.
+
+`media-segments.ts` runs inside the shared playback session for Electron and mobile.
+Android's `SegmentDataSource` wraps Media3 media requests and delegates decoding to
+`MediaSegments.kt`; manifests and keys retain the normal data source. Encoded input,
+expanded pixels, and decoded segments are bounded to 32 MiB. Unknown envelopes,
+malformed data, unsupported PNG layouts, and oversized expansions fail explicitly.
 
 ### Playback contract
 

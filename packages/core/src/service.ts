@@ -2,6 +2,7 @@ import { getEvents, getCountries } from "./catalog";
 import { discover, resolve, type ResolvedStream } from "./resolver";
 import { destination } from "./destination";
 import { rangeHeader } from "./media";
+import { decodeMediaSegment } from "./media-segments";
 import { pageClient, type Transport } from "./transport";
 import type { Channel, StreamLink, SportsApi } from "./model";
 
@@ -96,7 +97,17 @@ export function createSportsService(
       if (requestedRange) headers.Range = requestedRange;
       return operation(
         id,
-        (signal) => request(url, headers, signal, 32 * 1024 * 1024),
+        async (signal) => {
+          const response = await request(
+            url,
+            headers,
+            signal,
+            32 * 1024 * 1024,
+          );
+          const data = await decodeMediaSegment(response.data, signal);
+          signal.throwIfAborted();
+          return { ...response, data };
+        },
         token,
       );
     },

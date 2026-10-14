@@ -580,7 +580,7 @@ class MainActivity : ComponentActivity() {
                 if (screen != Screen.PLAYER) return@launch
                 val httpFactory = DefaultHttpDataSource.Factory().setUserAgent(PageClient.USER_AGENT)
                     .setDefaultRequestProperties(stream.headers).setConnectTimeoutMs(12_000).setReadTimeoutMs(15_000)
-                val media = HlsMediaSource.Factory(httpFactory).createMediaSource(
+                val media = HlsMediaSource.Factory(SegmentDataSource.factory(httpFactory)).createMediaSource(
                     MediaItem.Builder().setUri(stream.url).setMimeType(MimeTypes.APPLICATION_M3U8).build())
                 val activePlayer = player ?: ExoPlayer.Builder(this@MainActivity).build().also {
                     player = it; playerView?.player = it

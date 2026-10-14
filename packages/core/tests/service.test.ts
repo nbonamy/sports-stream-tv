@@ -65,3 +65,41 @@ test("clear cancels outstanding work and invalidates sessions", async () => {
   await rejected;
   await assert.rejects(service.media(playback.token, media, "next"));
 });
+
+test("shared media contract reaches playback through the session", async () => {
+  const { readFileSync } = await import("node:fs");
+  const contract = JSON.parse(
+    readFileSync(
+      new URL("../../../contracts/streams/media-cases.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  for (const fixture of contract.cases) {
+    const transport: Transport = async (url) => ({
+      url,
+      status: 200,
+      data:
+        url === channel.url
+          ? new TextEncoder().encode(`file: '${media}'`)
+          : url === media
+            ? new TextEncoder().encode("#EXTM3U\n#EXTINF:6\nsegment.png")
+            : new Uint8Array(Buffer.from(fixture.inputBase64, "base64")),
+    });
+    const service = createSportsService(transport);
+    const session = await service.resolve(channel, "resolve");
+    const output = service.media(
+      session.token,
+      "https://cdn.example.test/segment.png",
+      "fragment",
+    );
+    if (fixture.expectedBase64 === null)
+      await assert.rejects(output, /Source unavailable/, fixture.name);
+    else
+      assert.deepEqual(
+        Buffer.from((await output).data),
+        Buffer.from(fixture.expectedBase64, "base64"),
+        fixture.name,
+      );
+    service.clear();
+  }
+});

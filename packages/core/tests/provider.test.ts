@@ -570,3 +570,72 @@ test("ordered evening fixtures roll past midnight within each competition table"
     ],
   );
 });
+
+test("dynamic player session follows the shared request and renewal contract", async () => {
+  const fixture = JSON.parse(
+    readFileSync(
+      new URL("../../../contracts/streams/session-case.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  const calls: { url: string; headers: Record<string, string> }[] = [];
+  const result = await resolve(
+    { label: "Stream 1", url: fixture.selectedUrl },
+    undefined,
+    async (url, headers = {}) => {
+      calls.push({ url, headers });
+      if (!(url in fixture.pages)) throw new Error("Unexpected request");
+      return { url, body: fixture.pages[url] };
+    },
+  );
+  assert.deepEqual(
+    calls.map((c) => c.url),
+    fixture.expectedRequests,
+  );
+  assert.equal(result.url, fixture.expectedUrl);
+  assert.equal(result.expiresAt, fixture.expectedExpiresAt);
+  assert.deepEqual(calls[3].headers, {
+    ...fixture.expectedAuthHeaders,
+    "User-Agent": USER_AGENT,
+  });
+  assert.deepEqual(result.headers, {
+    ...fixture.expectedMediaHeaders,
+    "User-Agent": USER_AGENT,
+  });
+});
+
+test("dynamic player rejects unsafe or incomplete shared session cases", async () => {
+  const fixture = JSON.parse(
+    readFileSync(
+      new URL("../../../contracts/streams/session-case.json", import.meta.url),
+      "utf8",
+    ),
+  );
+  for (const rejection of fixture.rejections) {
+    const pages = { ...fixture.pages };
+    const changed = fixture.expectedRequests[rejection.pageIndex];
+    pages[changed] = pages[changed].replace(
+      rejection.find,
+      rejection.replacement,
+    );
+    const requests: string[] = [];
+    await assert.rejects(
+      resolve(
+        { label: "Stream 1", url: fixture.selectedUrl },
+        undefined,
+        async (url) => {
+          requests.push(url);
+          if (!(url in pages)) throw new Error("Unexpected request");
+          return { url, body: pages[url] };
+        },
+      ),
+      /Stream unavailable/,
+      rejection.name,
+    );
+    assert.deepEqual(
+      requests,
+      fixture.expectedRequests.slice(0, rejection.requestCount),
+      rejection.name,
+    );
+  }
+});

@@ -17,16 +17,15 @@ object PlayerPageParser {
         // player form used by in-stream; never fall back to a different array entry.
         val indexedSource = Regex("""\b(?:source|file|src)\s*:\s*([A-Za-z_$][\w$]*)\s*\[\s*(\d{1,4})\s*]\s*[,}]""")
         for (source in indexedSource.findAll(html)) {
+            arrayEntry(html, source.groupValues[1], source.groupValues[2].toInt())?.let { return it }
+        }
+        // Read the initial source from a literal getter, without executing fallback logic.
+        for (source in Regex("""\b(?:source|file|src)\s*:\s*([A-Za-z_$][\w$]*)\(\s*\)\s*[,}]""").findAll(html)) {
             val name = Regex.escape(source.groupValues[1])
-            val declaration = Regex("""\b(?:var|let|const)\s+$name\s*=\s*(\[[^]]{0,65536}])\s*;""")
-                .find(html)?.groupValues?.get(1) ?: continue
-            val selected = runCatching {
-                val values = JsonParser.parseString(declaration).asJsonArray
-                require(values.size() <= 128 && values.all { it.isJsonPrimitive && it.asJsonPrimitive.isString })
-                val index = source.groupValues[2].toInt()
-                if (index in 0 until values.size()) values[index].asString else null
-            }.getOrNull()
-            if (selected != null && isHls(selected)) return selected
+            val getter = Regex("""\bfunction\s+$name\(\s*\)\s*\{\s*return\s+([A-Za-z_$][\w$]*)\[\s*([A-Za-z_$][\w$]*)\s*\]\s*;?\s*\}""").find(html) ?: continue
+            val indexName = Regex.escape(getter.groupValues[2])
+            val index = Regex("""\b(?:var|let|const)\s+$indexName\s*=\s*(\d{1,4})\s*;""").find(html)?.groupValues?.get(1)?.toInt() ?: continue
+            arrayEntry(html, getter.groupValues[1], index)?.let { return it }
         }
         // Parse data only. Never evaluate JavaScript or load the provider's advertising scripts.
         val expression = Regex("""return\s*\(\s*(\[\s*".*?])\.join\(\s*""\s*\)(.*?)\)\s*;""", RegexOption.DOT_MATCHES_ALL)
@@ -60,14 +59,22 @@ object PlayerPageParser {
             .findAll(html).map { it.groupValues[1].replace("\\/", "/").replace("&amp;", "&") }
             .firstOrNull { isHls(it) }
         if (direct != null) return direct
-        // Clappr may refer to a literal URL declared separately, as on la18hd.
-        return Regex("""\bsource\s*:\s*([A-Za-z_$][\w$]*)\s*[,}]""")
+        // Players may bind source/file/src to a separately declared literal URL.
+        return Regex("""\b(?:source|file|src)\s*:\s*([A-Za-z_$][\w$]*)\s*[,}]""")
             .findAll(html).mapNotNull { source ->
                 val name = Regex.escape(source.groupValues[1])
                 Regex("""\b(?:var|let|const)\s+$name\s*=\s*(['"])(https?[^'"\s]+)\1\s*;""")
                     .find(html)?.groupValues?.get(2)?.replace("\\/", "/")?.replace("&amp;", "&")
             }.firstOrNull { isHls(it) }
     }
+
+    private fun arrayEntry(html: String, name: String, index: Int): String? = runCatching {
+        val declaration = Regex("""\b(?:var|let|const)\s+${Regex.escape(name)}\s*=\s*(\[[^]]{0,65536}])\s*;""")
+            .find(html)?.groupValues?.get(1) ?: return null
+        val values = JsonParser.parseString(declaration).asJsonArray
+        require(values.size() <= 128 && values.all { it.isJsonPrimitive && it.asJsonPrimitive.isString })
+        if (index in 0 until values.size()) values[index].asString.takeIf { isHls(it) } else null
+    }.getOrNull()
 
     private fun decodeArray(json: String): String? = runCatching {
         JsonParser.parseString(json).asJsonArray.joinToString("") {
@@ -94,6 +101,7 @@ object PlayerPageParser {
         }
         val channel = Regex("""\bfid\s*=\s*['"]([a-zA-Z0-9_-]+)['"]""").find(html)?.groupValues?.get(1)
         if (wikiScript != null && channel != null) next += "https://igniteandship.com/wiki.php?player=desktop&live=$channel"
+        SessionPlayer.embed(html, pageUrl)?.let { next += it }
         next += PlayerEmbeds.candidates(doc)
         return next.filter(PlayerDestination::accepts).distinct().take(8)
     }
@@ -148,6 +156,7 @@ class StreamResolver(private val http: PageClient = PageClient(), private val tr
         try {
             trace("Reading ${URI(url).host}")
             val page = http.getPlayerPage(url, mapOf("Referer" to parent))
+            SessionPlayer.resolve(page.body, page.url, http)?.let { return it }
             val playlist = PlayerPageParser.playlist(page.body)
             if (playlist != null) {
                 val origin = URI(page.url).let { "${it.scheme}://${it.rawAuthority}" }

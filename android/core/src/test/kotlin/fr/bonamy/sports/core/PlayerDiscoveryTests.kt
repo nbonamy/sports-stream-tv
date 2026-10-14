@@ -8,6 +8,56 @@ import java.net.UnknownHostException
 import kotlin.test.*
 
 class PlayerDiscoveryTests {
+    @Test fun `dynamic player rejects unsafe or incomplete shared session cases`() = runBlocking {
+        val fixture = javaClass.getResourceAsStream("/streams/session-case.json")!!.bufferedReader().use {
+            com.google.gson.JsonParser.parseReader(it).asJsonObject
+        }
+        val expected = fixture.getAsJsonArray("expectedRequests").map { it.asString }
+        for (entry in fixture.getAsJsonArray("rejections")) {
+            val rejection = entry.asJsonObject
+            val pages = fixture.getAsJsonObject("pages").entrySet().associate { it.key to it.value.asString }.toMutableMap()
+            val changed = expected[rejection["pageIndex"].asInt]
+            pages[changed] = pages.getValue(changed).replace(rejection["find"].asString, rejection["replacement"].asString)
+            val requests = mutableListOf<String>()
+            val client = OkHttpClient.Builder().addInterceptor { chain ->
+                val url = chain.request().url.toString()
+                requests += url
+                val body = pages[url] ?: error("Unexpected request")
+                Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                    .body(body.toResponseBody()).build()
+            }.build()
+            assertFailsWith<SourceUnavailable>(rejection["name"].asString) {
+                StreamResolver(PageClient(client)).resolve(StreamLink("Stream 1", fixture["selectedUrl"].asString))
+            }
+            assertEquals(expected.take(rejection["requestCount"].asInt), requests, rejection["name"].asString)
+        }
+    }
+
+    @Test fun `dynamic player session follows shared request and renewal contract`() = runBlocking {
+        val fixture = javaClass.getResourceAsStream("/streams/session-case.json")!!.bufferedReader().use {
+            com.google.gson.JsonParser.parseReader(it).asJsonObject
+        }
+        val pages = fixture.getAsJsonObject("pages")
+        val requests = mutableListOf<Request>()
+        val client = OkHttpClient.Builder().addInterceptor { chain ->
+            requests += chain.request()
+            val body = pages[chain.request().url.toString()]?.asString ?: error("Unexpected request")
+            Response.Builder().request(chain.request()).protocol(Protocol.HTTP_1_1).code(200).message("OK")
+                .body(body.toResponseBody()).build()
+        }.build()
+        val result = StreamResolver(PageClient(client)).resolve(StreamLink("Stream 1", fixture["selectedUrl"].asString))
+        assertEquals(fixture.getAsJsonArray("expectedRequests").map { it.asString }, requests.map { it.url.toString() })
+        assertEquals(fixture["expectedUrl"].asString, result.url)
+        assertEquals(fixture["expectedExpiresAt"].asLong, result.expiresAtMillis)
+        fixture.getAsJsonObject("expectedAuthHeaders").entrySet().forEach { (name, value) ->
+            assertEquals(value.asString, requests[3].header(name))
+        }
+        assertEquals(PageClient.USER_AGENT, requests[3].header("User-Agent"))
+        fixture.getAsJsonObject("expectedMediaHeaders").entrySet().forEach { (name, value) ->
+            assertEquals(value.asString, result.headers[name])
+        }
+    }
+
     @Test fun `invalid and local destinations are rejected before a request is sent`() = runBlocking {
         var requested = false
         val http = PageClient(OkHttpClient.Builder().addInterceptor {

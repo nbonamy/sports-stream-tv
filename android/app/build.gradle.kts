@@ -5,6 +5,7 @@ android {
     namespace = "fr.bonamy.sports"
     compileSdk = 36
     sourceSets["main"].res.srcDir(rootProject.file("../assets/sports"))
+    sourceSets["test"].resources.srcDir(rootProject.file("../contracts"))
     defaultConfig {
         applicationId = "fr.bonamy.sports"
         minSdk = 26

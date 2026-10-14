@@ -2,6 +2,7 @@ import { load } from "cheerio";
 import { destination } from "./destination";
 import type { PageClient } from "./transport";
 import { playlist } from "./decoders";
+import { sessionEmbed, resolveSessionPlayer } from "./session-player";
 import { PROVIDER_BASE, USER_AGENT } from "./provider";
 import type { Channel, StreamLink } from "./model";
 
@@ -29,13 +30,17 @@ const absolute = (value: string | undefined, base: string) => {
 export function nextPages(html: string, pageUrl: string): string[] {
   const $ = load(html);
   const candidates: { url: string; score: number }[] = [];
+  const dynamic = sessionEmbed(html, pageUrl);
+  if (dynamic) candidates.push({ url: dynamic, score: 50 });
   const wiki = $("script[src]")
     .toArray()
     .some((e) => {
       const source = absolute($(e).attr("src"), pageUrl);
       if (!accepted(source)) return false;
       const url = new URL(source);
-      return url.hostname === "igniteandship.com" && url.pathname === "/wiki.js";
+      return (
+        url.hostname === "igniteandship.com" && url.pathname === "/wiki.js"
+      );
     });
   const fid = /\bfid\s*=\s*['"]([a-zA-Z0-9_-]+)['"]/.exec(html)?.[1];
   if (wiki && fid)
@@ -172,6 +177,8 @@ export async function resolve(
     visited.add(url);
     try {
       const p = await client(url, { Referer: parent }, scoped);
+      const session = await resolveSessionPlayer(p.body, p.url, client, scoped);
+      if (session) return session;
       const media = playlist(p.body);
       if (media) {
         const origin = new URL(p.url).origin;

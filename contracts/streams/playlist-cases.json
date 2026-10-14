@@ -12,6 +12,41 @@
       "expectedUrl": "https://media.test/live/channel.m3u8?expires=2000000000"
     },
     {
+      "name": "JW Player literal file variable preserves selection",
+      "html": "const OTHER = \"https://media.test/wrong.m3u8\"; const SRC = \"https://media.test/selected.m3u8\"; jwplayer(\"player\").setup({file: SRC, autostart: true});",
+      "expectedUrl": "https://media.test/selected.m3u8"
+    },
+    {
+      "name": "literal src variable",
+      "html": "const stream = \"https://media.test/selected.m3u8\"; player.setup({src: stream});",
+      "expectedUrl": "https://media.test/selected.m3u8"
+    },
+    {
+      "name": "file variable expression is not a literal",
+      "html": "const SRC = \"https://media.test/selected.m3u8\" + suffix; player.setup({file: SRC});",
+      "expectedUrl": null
+    },
+    {
+      "name": "initial source returned by literal array helper",
+      "html": "const streamUrls=[\"https://media.test/first.m3u8\",\"https://media.test/wrong.m3u8\"]; let sourceIndex=0; function currentSource(){ return streamUrls[sourceIndex]; } function next(){sourceIndex++;} jwplayer(\"player\").setup({file:currentSource(),type:\"hls\"});",
+      "expectedUrl": "https://media.test/first.m3u8"
+    },
+    {
+      "name": "renamed helper uses declared index rather than first entry",
+      "html": "const feeds=[\"https://media.test/wrong.m3u8\",\"https://media.test/second.m3u8\"]; let selected=1; function initial(){return feeds[selected];} player.setup({source:initial()});",
+      "expectedUrl": "https://media.test/second.m3u8"
+    },
+    {
+      "name": "helper with executable body is not evaluated",
+      "html": "const feeds=[\"https://media.test/wrong.m3u8\"]; let index=0; function source(){index++;return feeds[index];} player.setup({file:source()});",
+      "expectedUrl": null
+    },
+    {
+      "name": "helper with computed index is unsupported",
+      "html": "const feeds=[\"https://media.test/wrong.m3u8\"]; let index=choose(); function source(){return feeds[index];} player.setup({file:source()});",
+      "expectedUrl": null
+    },
+    {
       "name": "indexed literal array uses exact selection",
       "html": "const streamUrls = [\"https://media.test/wrong.m3u8\", \"https://media.test/live/channel.m3u8?expires=2000000000\"]; player.setup({file: streamUrls[1],});",
       "expectedUrl": "https://media.test/live/channel.m3u8?expires=2000000000"

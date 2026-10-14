@@ -1,0 +1,67 @@
+{
+  "name": "dynamic embed registers session before extensionless HLS playback",
+  "selectedUrl": "https://catalog.test/psg/",
+  "pages": {
+    "https://catalog.test/psg/": "<iframe allowfullscreen src=\"https://wrapper.test/match\"></iframe>",
+    "https://wrapper.test/match": "<div class=\"ratio\"></div><script src=\"https://static.test/scripts/v1/embed.min.js\" data-pldm=\"player.test\" data-pid=\"match\" data-play=\"2\" data-player=\"jw\" data-gc=\"sports\"></script><script>const siteConfig={\"csrf\": \"fixture+csrf\", \"csrf_ip\": \"fixture-ip\", \"sec_expires\": \"2000000000\", \"sec_hash\": \"fixture-hash\"};</script>",
+    "https://player.test/sd0embed/sports?pid=match&v=2&player=jw&csrf=fixture%2Bcsrf&csrf_ip=fixture-ip&expires=2000000000&sec_hash=fixture-hash": "function decode(x){return window.atob(x)}\nlet stream=\"fixture-stream\", endpoint=decode(\"aHR0cHM6Ly9wbGF5ZXIudGVzdC9hdXRo\"), encoded=decode(String.fromCharCode(...[97, 72, 82, 48, 99, 72, 77, 54, 76, 121, 57, 116, 90, 87, 82, 112, 89, 83, 53, 48, 90, 88, 78, 48, 76, 50, 120, 112, 100, 109, 85, 118, 98, 87, 70, 117, 97, 87, 90, 108, 99, 51, 81, 117, 100, 72, 77, 47, 100, 86, 57, 112, 90, 68, 49, 112, 98, 109, 108, 48, 97, 87, 70, 115, 76, 87, 82, 108, 100, 109, 108, 106, 90, 81, 61, 61])), initialDevice=\"initial-device\", expires=parseInt(2000000000,10)||0;\nconst headers={\"Accept\":\"application/json\",\"X-CSRF-Auth\":decode(\"Zml4dHVyZS1jc3JmLWF1dGg=\")};\nfunction authUrl(info,refresh=false){return info?(url=`${endpoint}?scode=${encodeURIComponent(info.scode)}&stream=${encodeURIComponent(stream)}&expires=${encodeURIComponent(info.ts)}&u_id=${encodeURIComponent(info.device_id)}&session_id=${encodeURIComponent(info.session_id)}&host_id=`+encodeURIComponent(\"edge\"),refresh?url+\"&r=1\":url):\"\"}\nauthUrl({scode:\"fixture-code\",ts:expires,session_id:\"fixture-session\",device_id:initialDevice});\nlet selected=new URL(encoded); selected.searchParams.set(\"u_id\",device); player.setup({file:selected.toString(),type:\"hls\"});",
+    "https://player.test/auth?scode=fixture-code&stream=fixture-stream&expires=2000000000&u_id=initial-device&session_id=fixture-session&host_id=edge": "{\"success\": true, \"device_id\": \"registered-device\", \"valid_until\": 2000000600, \"refresh_after\": 300}",
+    "https://media.test/live/manifest.ts?u_id=registered-device": "#EXTM3U\n#EXTINF:6,\nsegment.ts"
+  },
+  "expectedRequests": [
+    "https://catalog.test/psg/",
+    "https://wrapper.test/match",
+    "https://player.test/sd0embed/sports?pid=match&v=2&player=jw&csrf=fixture%2Bcsrf&csrf_ip=fixture-ip&expires=2000000000&sec_hash=fixture-hash",
+    "https://player.test/auth?scode=fixture-code&stream=fixture-stream&expires=2000000000&u_id=initial-device&session_id=fixture-session&host_id=edge",
+    "https://media.test/live/manifest.ts?u_id=registered-device"
+  ],
+  "expectedUrl": "https://media.test/live/manifest.ts?u_id=registered-device",
+  "expectedExpiresAt": 2000000600000,
+  "expectedAuthHeaders": {
+    "X-CSRF-Auth": "fixture-csrf-auth",
+    "Accept": "application/json",
+    "Referer": "https://player.test/",
+    "Origin": "https://player.test"
+  },
+  "expectedMediaHeaders": {
+    "Referer": "https://player.test/",
+    "Origin": "https://player.test"
+  },
+  "rejections": [
+    {
+      "name": "private generated player host is not followed",
+      "pageIndex": 1,
+      "find": "data-pldm=\"player.test\"",
+      "replacement": "data-pldm=\"127.0.0.1\"",
+      "requestCount": 2
+    },
+    {
+      "name": "unrecognized decoder body is not executed",
+      "pageIndex": 2,
+      "find": "return window.atob(x)",
+      "replacement": "return fetch(x)",
+      "requestCount": 3
+    },
+    {
+      "name": "session registration rejection never fetches media",
+      "pageIndex": 3,
+      "find": "\"success\": true",
+      "replacement": "\"success\": false",
+      "requestCount": 4
+    },
+    {
+      "name": "missing device identity never fetches media",
+      "pageIndex": 3,
+      "find": "\"registered-device\"",
+      "replacement": "null",
+      "requestCount": 4
+    },
+    {
+      "name": "invalid session expiry never fetches media",
+      "pageIndex": 3,
+      "find": "2000000600",
+      "replacement": "0",
+      "requestCount": 4
+    }
+  ]
+}
