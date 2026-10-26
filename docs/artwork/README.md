@@ -8,6 +8,15 @@ and colors with a rounded Mac mask. To regenerate them on macOS, install `librsv
 (`brew install librsvg`) and run `npm run icon` from `electron/`. Normal builds use
 the committed icon files and do not need that tool.
 
+The Android TV launcher uses `android/app/src/main/res/drawable-xhdpi/tv_banner.png`,
+a 320 × 180 banner with the field mark centered above the gold Sports name.
+Its source is `branding/sports-banner.svg`, using the bundled Nunito Bold font in
+`branding/fonts/` under the SIL Open Font License. Regenerate it with `librsvg` installed:
+
+```sh
+python3 tools/generate_tv_banner.py
+```
+
 ## Sport artwork
 
 Source PNGs live in [originals](originals). Both platforms use the prepared
